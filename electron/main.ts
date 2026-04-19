@@ -1,152 +1,154 @@
-import { app, BrowserWindow, ipcMain, shell } from "electron"
-import path from "node:path"
-import { fileURLToPath } from "node:url"
-
-import { ArchiveStore } from "./archive-store"
-import { SyncService } from "./sync-service"
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { app, BrowserWindow, ipcMain, shell } from "electron";
 import {
-  desktopChannels,
-  type DesktopAppState,
-  type SyncStartOptions,
-} from "../src/types/desktop"
+	type DesktopAppState,
+	desktopChannels,
+	type SyncStartOptions,
+} from "../src/types/desktop";
+import { ArchiveStore } from "./archive-store";
+import { SyncService } from "./sync-service";
 
-const applicationName = "Twitter Likes Manager"
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const preloadPath = path.join(__dirname, "preload.mjs")
-let archiveStore: ArchiveStore | null = null
-let syncService: SyncService | null = null
+const applicationName = "Twitter Likes Manager";
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const preloadPath = path.join(__dirname, "preload.mjs");
+let archiveStore: ArchiveStore | null = null;
+let syncService: SyncService | null = null;
 
-app.setName(applicationName)
-app.setPath("userData", path.join(app.getPath("appData"), applicationName))
+app.setName(applicationName);
+app.setPath("userData", path.join(app.getPath("appData"), applicationName));
 
 function getAppState(): DesktopAppState {
-  const archiveState = archiveStore?.getAppState() ?? {
-    dataDirectory: app.getPath("userData"),
-    services: [
-      {
-        id: "electron-shell",
-        label: "Electron shell",
-        status: "ready",
-        detail:
-          "Desktop window, preload bridge, and runtime metadata are active.",
-      },
-      {
-        id: "storage-layer",
-        label: "Local storage",
-        status: "blocked",
-        detail: "Archive store has not been initialized yet.",
-      },
-      {
-        id: "capture-worker",
-        label: "Capture worker",
-        status: "planned",
-        detail:
-          "A Playwright worker will own signed-in capture of the Likes timeline.",
-      },
-    ],
-  }
+	const archiveState = archiveStore?.getAppState() ?? {
+		dataDirectory: app.getPath("userData"),
+		services: [
+			{
+				id: "electron-shell",
+				label: "Electron shell",
+				status: "ready",
+				detail:
+					"Desktop window, preload bridge, and runtime metadata are active.",
+			},
+			{
+				id: "storage-layer",
+				label: "Local storage",
+				status: "blocked",
+				detail: "Archive store has not been initialized yet.",
+			},
+			{
+				id: "capture-worker",
+				label: "Capture worker",
+				status: "planned",
+				detail:
+					"A Playwright worker will own signed-in capture of the Likes timeline.",
+			},
+		],
+	};
 
-  return {
-    runtime: "electron",
-    appName: app.getName(),
-    appVersion: app.getVersion(),
-    isPackaged: app.isPackaged,
-    platform: process.platform,
-    dataDirectory: archiveState.dataDirectory,
-    versions: {
-      node: process.versions.node,
-      chrome: process.versions.chrome,
-      electron: process.versions.electron,
-    },
-    services: archiveState.services,
-  }
+	return {
+		runtime: "electron",
+		appName: app.getName(),
+		appVersion: app.getVersion(),
+		isPackaged: app.isPackaged,
+		platform: process.platform,
+		dataDirectory: archiveState.dataDirectory,
+		versions: {
+			node: process.versions.node,
+			chrome: process.versions.chrome,
+			electron: process.versions.electron,
+		},
+		services: archiveState.services,
+	};
 }
 
 function registerIpcHandlers() {
-  ipcMain.handle(desktopChannels.getAppState, () => getAppState())
-  ipcMain.handle(desktopChannels.getArchiveSnapshot, () => {
-    if (!archiveStore) {
-      throw new Error("Archive store is not initialized")
-    }
+	ipcMain.handle(desktopChannels.getAppState, () => getAppState());
+	ipcMain.handle(desktopChannels.getArchiveSnapshot, () => {
+		if (!archiveStore) {
+			throw new Error("Archive store is not initialized");
+		}
 
-    return archiveStore.getArchiveSnapshot()
-  })
-  ipcMain.handle(desktopChannels.getSyncState, () => {
-    if (!syncService) {
-      throw new Error("Sync service is not initialized")
-    }
+		return archiveStore.getArchiveSnapshot();
+	});
+	ipcMain.handle(desktopChannels.getSyncState, () => {
+		if (!syncService) {
+			throw new Error("Sync service is not initialized");
+		}
 
-    return syncService.getSyncState()
-  })
-  ipcMain.handle(desktopChannels.startSync, (_event, options?: SyncStartOptions) => {
-    if (!syncService) {
-      throw new Error("Sync service is not initialized")
-    }
+		return syncService.getSyncState();
+	});
+	ipcMain.handle(
+		desktopChannels.startSync,
+		(_event, options?: SyncStartOptions) => {
+			if (!syncService) {
+				throw new Error("Sync service is not initialized");
+			}
 
-    return syncService.startSync(options)
-  })
-  ipcMain.handle(desktopChannels.ping, () => "pong")
-  ipcMain.handle(desktopChannels.openDataDirectory, async () => {
-    const result = await shell.openPath(app.getPath("userData"))
+			return syncService.startSync(options);
+		},
+	);
+	ipcMain.handle(desktopChannels.ping, () => "pong");
+	ipcMain.handle(desktopChannels.openDataDirectory, async () => {
+		const result = await shell.openPath(app.getPath("userData"));
 
-    if (result) {
-      throw new Error(result)
-    }
-  })
+		if (result) {
+			throw new Error(result);
+		}
+	});
 }
 
 async function createMainWindow() {
-  const window = new BrowserWindow({
-    width: 1480,
-    height: 960,
-    minWidth: 1180,
-    minHeight: 760,
-    backgroundColor: "#0f0f10",
-    titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
-    webPreferences: {
-      preload: preloadPath,
-      contextIsolation: true,
-      nodeIntegration: false,
-    },
-  })
+	const window = new BrowserWindow({
+		width: 1480,
+		height: 960,
+		minWidth: 1180,
+		minHeight: 760,
+		backgroundColor: "#0f0f10",
+		titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
+		webPreferences: {
+			preload: preloadPath,
+			contextIsolation: true,
+			nodeIntegration: false,
+		},
+	});
 
-  if (process.env.VITE_DEV_SERVER_URL) {
-    await window.loadURL(process.env.VITE_DEV_SERVER_URL)
-    window.webContents.openDevTools({ mode: "detach" })
-  } else {
-    await window.loadFile(path.join(__dirname, "../dist/index.html"))
-  }
+	if (process.env.VITE_DEV_SERVER_URL) {
+		await window.loadURL(process.env.VITE_DEV_SERVER_URL);
+		window.webContents.openDevTools({ mode: "detach" });
+	} else {
+		await window.loadFile(path.join(__dirname, "../dist/index.html"));
+	}
 }
 
 process.on("message", (message) => {
-  if (message !== "electron-vite&type=hot-reload") {
-    return
-  }
+	if (message !== "electron-vite&type=hot-reload") {
+		return;
+	}
 
-  for (const window of BrowserWindow.getAllWindows()) {
-    window.webContents.reload()
-  }
-})
+	for (const window of BrowserWindow.getAllWindows()) {
+		window.webContents.reload();
+	}
+});
 
 app.whenReady().then(async () => {
-  archiveStore = new ArchiveStore({ dataDirectory: app.getPath("userData") })
-  syncService = new SyncService(archiveStore)
-  registerIpcHandlers()
-  await createMainWindow()
+	archiveStore = new ArchiveStore({ dataDirectory: app.getPath("userData") });
+	syncService = new SyncService(archiveStore);
+	registerIpcHandlers();
+	await createMainWindow();
 
-  if (process.env.TLM_AUTOSTART_SYNC === "1") {
-    syncService.startSync()
-  }
+	if (process.env.TLM_AUTOSTART_SYNC === "1") {
+		syncService.startSync();
+	}
 
-  app.on("activate", async () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      await createMainWindow()
-    }
-  })
-})
+	app.on("activate", async () => {
+		if (BrowserWindow.getAllWindows().length === 0) {
+			await createMainWindow();
+		}
+	});
+});
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit()
-  }
-})
+	if (process.platform !== "darwin") {
+		app.quit();
+	}
+});

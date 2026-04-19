@@ -210,16 +210,15 @@ export class PlaywrightSync {
 			const maxScrollRounds = Math.max(8, Math.ceil(maxTweets / 20) * 8);
 
 			for (let round = 0; round < maxScrollRounds; round += 1) {
-				const likesResponsesBeforeScroll = this.countLikesTimelineResponses(
-					capturedResponses,
-				);
-				const capturedTweetCountBeforeScroll = this.countCapturedTweetIds(
-					capturedResponses,
-				);
+				const likesResponsesBeforeScroll =
+					this.countLikesTimelineResponses(capturedResponses);
+				const capturedTweetCountBeforeScroll =
+					this.countCapturedTweetIds(capturedResponses);
 				const visibleTweetCount = await this.countVisibleTweets(page);
 
 				if (
-					Math.max(visibleTweetCount, capturedTweetCountBeforeScroll) >= maxTweets
+					Math.max(visibleTweetCount, capturedTweetCountBeforeScroll) >=
+					maxTweets
 				) {
 					break;
 				}
@@ -233,12 +232,10 @@ export class PlaywrightSync {
 				await page.keyboard.press("End").catch(() => undefined);
 				await page.waitForTimeout(2500);
 
-				const likesResponsesAfterScroll = this.countLikesTimelineResponses(
-					capturedResponses,
-				);
-				const capturedTweetCountAfterScroll = this.countCapturedTweetIds(
-					capturedResponses,
-				);
+				const likesResponsesAfterScroll =
+					this.countLikesTimelineResponses(capturedResponses);
+				const capturedTweetCountAfterScroll =
+					this.countCapturedTweetIds(capturedResponses);
 
 				if (
 					likesResponsesAfterScroll > likesResponsesBeforeScroll ||
@@ -345,7 +342,9 @@ export class PlaywrightSync {
 	}
 
 	private countLikesTimelineResponses(capturedResponses: CapturedResponse[]) {
-		return capturedResponses.filter((response) => response.url.includes("/Likes?")).length;
+		return capturedResponses.filter((response) =>
+			response.url.includes("/Likes?"),
+		).length;
 	}
 
 	private countCapturedTweetIds(capturedResponses: CapturedResponse[]) {
@@ -372,9 +371,10 @@ export class PlaywrightSync {
 						};
 					};
 				};
-				const entries = body.data?.user?.result?.timeline?.timeline?.instructions?.flatMap(
-					(instruction) => instruction.entries ?? [],
-				) ?? [];
+				const entries =
+					body.data?.user?.result?.timeline?.timeline?.instructions?.flatMap(
+						(instruction) => instruction.entries ?? [],
+					) ?? [];
 
 				for (const entry of entries) {
 					const entryId = entry.entryId ?? "";
@@ -383,9 +383,7 @@ export class PlaywrightSync {
 						tweetIds.add(entryId.slice("tweet-".length));
 					}
 				}
-			} catch {
-				continue;
-			}
+			} catch {}
 		}
 
 		return tweetIds.size;
