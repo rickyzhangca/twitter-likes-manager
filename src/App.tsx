@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react"
 
 import { Button } from "@/components/ui/button"
-import type { DesktopAppState, DesktopService } from "@/types/desktop"
+import type {
+  ArchiveSnapshot,
+  ArchiveTweetPreview,
+  DesktopAppState,
+  DesktopService,
+} from "@/types/desktop"
 
 const browserPreviewState: DesktopAppState = {
   runtime: "browser",
@@ -58,6 +63,41 @@ const plannedScreens = [
   },
 ]
 
+const browserPreviewArchive: ArchiveSnapshot = {
+  databasePath: null,
+  dataDirectory: null,
+  stats: {
+    tweetCount: 0,
+    authorCount: 0,
+    mediaCount: 0,
+    latestLikedAt: null,
+  },
+  tweets: [],
+}
+
+function formatDate(isoString: string | null) {
+  if (!isoString) {
+    return "not available"
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(isoString))
+}
+
+function stateTone(tweet: ArchiveTweetPreview) {
+  if (tweet.state === "available") {
+    return "border-primary/30 bg-primary/8 text-foreground"
+  }
+
+  if (tweet.state === "planned") {
+    return "border-border bg-background/80 text-muted-foreground"
+  }
+
+  return "border-destructive/30 bg-destructive/10 text-foreground"
+}
+
 function serviceTone(service: DesktopService) {
   if (service.status === "ready") {
     return "border-primary/40 bg-primary/8 text-foreground"
@@ -72,10 +112,12 @@ function serviceTone(service: DesktopService) {
 
 export function App() {
   const [appState, setAppState] = useState<DesktopAppState>(browserPreviewState)
+  const [archive, setArchive] = useState<ArchiveSnapshot>(browserPreviewArchive)
   const [bridgeStatus, setBridgeStatus] = useState(
     "Browser preview mode. Desktop services are idle until Electron boots."
   )
   const [isOpeningDataDir, setIsOpeningDataDir] = useState(false)
+  const [isLoadingArchive, setIsLoadingArchive] = useState(false)
 
   useEffect(() => {
     let isDisposed = false
@@ -85,8 +127,11 @@ export function App() {
         return
       }
 
-      const [nextState, pong] = await Promise.all([
+      setIsLoadingArchive(true)
+
+      const [nextState, nextArchive, pong] = await Promise.all([
         window.twitterLikesDesktop.getAppState(),
+        window.twitterLikesDesktop.getArchiveSnapshot(),
         window.twitterLikesDesktop.ping(),
       ])
 
@@ -95,7 +140,9 @@ export function App() {
       }
 
       setAppState(nextState)
+      setArchive(nextArchive)
       setBridgeStatus(`Desktop bridge online: ${pong}`)
+      setIsLoadingArchive(false)
     }
 
     void loadDesktopState().catch((error: unknown) => {
@@ -106,6 +153,7 @@ export function App() {
       const message =
         error instanceof Error ? error.message : "Unknown preload bridge error"
       setBridgeStatus(`Desktop bridge failed: ${message}`)
+      setIsLoadingArchive(false)
     })
 
     return () => {
@@ -228,9 +276,102 @@ export function App() {
                 </article>
               ))}
             </div>
+
+            <div className="mt-6 border border-border bg-background/80 p-4 text-sm leading-6 text-muted-foreground">
+              <p className="text-foreground">Archive database</p>
+              <p className="mt-2 break-all">{archive.databasePath ?? "No database yet"}</p>
+            </div>
           </section>
 
           <section className="grid gap-6">
+            <div className="border border-border bg-card p-6">
+              <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+                Local archive
+              </p>
+              <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                <div className="border border-border bg-background/80 p-4">
+                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                    Tweets
+                  </p>
+                  <p className="mt-3 text-2xl text-foreground">{archive.stats.tweetCount}</p>
+                </div>
+                <div className="border border-border bg-background/80 p-4">
+                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                    Authors
+                  </p>
+                  <p className="mt-3 text-2xl text-foreground">{archive.stats.authorCount}</p>
+                </div>
+                <div className="border border-border bg-background/80 p-4">
+                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                    Media
+                  </p>
+                  <p className="mt-3 text-2xl text-foreground">{archive.stats.mediaCount}</p>
+                </div>
+              </div>
+              <p className="mt-4 text-sm text-muted-foreground">
+                Latest liked tweet saved: {formatDate(archive.stats.latestLikedAt)}
+              </p>
+            </div>
+
+            <div className="border border-border bg-card p-6">
+              <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+                Recent archive rows
+              </p>
+              {isLoadingArchive ? (
+                <p className="mt-5 text-sm text-muted-foreground">Loading archive...</p>
+              ) : archive.tweets.length === 0 ? (
+                <div className="mt-5 border border-border bg-background/80 p-4">
+                  <p className="text-sm text-muted-foreground">
+                    No archive rows yet. The next slice will replace the seeded store
+                    with captured likes from X.
+                  </p>
+                </div>
+              ) : (
+                <div className="mt-5 grid gap-4">
+                  {archive.tweets.map((tweet) => (
+                    <article
+                      key={tweet.id}
+                      className={`border p-4 ${stateTone(tweet)}`}
+                    >
+                      <div className="flex items-center justify-between gap-4 text-xs uppercase tracking-[0.2em]">
+                        <span>@{tweet.author.username}</span>
+                        <span>{tweet.state}</span>
+                      </div>
+                      <p className="mt-3 text-sm leading-6 text-foreground">
+                        {tweet.text}
+                      </p>
+                      <dl className="mt-4 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
+                        <div>
+                          <dt>Liked</dt>
+                          <dd className="mt-1 text-foreground">
+                            {formatDate(tweet.likedAt)}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>Created</dt>
+                          <dd className="mt-1 text-foreground">
+                            {formatDate(tweet.createdAt)}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>Metrics</dt>
+                          <dd className="mt-1 text-foreground">
+                            {tweet.metrics.likes} likes, {tweet.metrics.replies} replies
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>Media</dt>
+                          <dd className="mt-1 text-foreground">
+                            {tweet.metrics.mediaCount} attached item(s)
+                          </dd>
+                        </div>
+                      </dl>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div className="border border-border bg-card p-6">
               <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
                 Planned screens

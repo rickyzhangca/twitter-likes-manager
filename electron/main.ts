@@ -2,27 +2,23 @@ import { app, BrowserWindow, ipcMain, shell } from "electron"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 
+import { ArchiveStore } from "./archive-store"
 import {
   desktopChannels,
   type DesktopAppState,
 } from "../src/types/desktop"
 
+const applicationName = "Twitter Likes Manager"
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const preloadPath = path.join(__dirname, "preload.mjs")
+let archiveStore: ArchiveStore | null = null
+
+app.setName(applicationName)
+app.setPath("userData", path.join(app.getPath("appData"), applicationName))
 
 function getAppState(): DesktopAppState {
-  return {
-    runtime: "electron",
-    appName: app.getName(),
-    appVersion: app.getVersion(),
-    isPackaged: app.isPackaged,
-    platform: process.platform,
+  const archiveState = archiveStore?.getAppState() ?? {
     dataDirectory: app.getPath("userData"),
-    versions: {
-      node: process.versions.node,
-      chrome: process.versions.chrome,
-      electron: process.versions.electron,
-    },
     services: [
       {
         id: "electron-shell",
@@ -34,9 +30,8 @@ function getAppState(): DesktopAppState {
       {
         id: "storage-layer",
         label: "Local storage",
-        status: "planned",
-        detail:
-          "SQLite schema, migrations, and app-owned media directories come next.",
+        status: "blocked",
+        detail: "Archive store has not been initialized yet.",
       },
       {
         id: "capture-worker",
@@ -47,10 +42,32 @@ function getAppState(): DesktopAppState {
       },
     ],
   }
+
+  return {
+    runtime: "electron",
+    appName: app.getName(),
+    appVersion: app.getVersion(),
+    isPackaged: app.isPackaged,
+    platform: process.platform,
+    dataDirectory: archiveState.dataDirectory,
+    versions: {
+      node: process.versions.node,
+      chrome: process.versions.chrome,
+      electron: process.versions.electron,
+    },
+    services: archiveState.services,
+  }
 }
 
 function registerIpcHandlers() {
   ipcMain.handle(desktopChannels.getAppState, () => getAppState())
+  ipcMain.handle(desktopChannels.getArchiveSnapshot, () => {
+    if (!archiveStore) {
+      throw new Error("Archive store is not initialized")
+    }
+
+    return archiveStore.getArchiveSnapshot()
+  })
   ipcMain.handle(desktopChannels.ping, () => "pong")
   ipcMain.handle(desktopChannels.openDataDirectory, async () => {
     const result = await shell.openPath(app.getPath("userData"))
@@ -95,7 +112,7 @@ process.on("message", (message) => {
 })
 
 app.whenReady().then(async () => {
-  app.setName("Twitter Likes Manager")
+  archiveStore = new ArchiveStore({ dataDirectory: app.getPath("userData") })
   registerIpcHandlers()
   await createMainWindow()
 
