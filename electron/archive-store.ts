@@ -160,9 +160,9 @@ export class ArchiveStore {
         {
           id: "capture-worker",
           label: "Capture worker",
-          status: "planned",
+          status: "ready",
           detail:
-            "A Playwright worker will own signed-in capture of the Likes timeline.",
+            "A Playwright profile can launch and hold at the X login boundary; timeline capture is the next slice.",
         },
       ],
     }

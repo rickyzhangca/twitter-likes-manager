@@ -1,57 +1,20 @@
 import { randomUUID } from "node:crypto"
+import path from "node:path"
 
 import type { SyncState } from "../src/types/desktop"
 import { ArchiveStore } from "./archive-store"
-
-type SyncStep = {
-  phase: SyncState["activeRun"] extends infer ActiveRun
-    ? ActiveRun extends { phase: infer Phase }
-      ? Phase
-      : never
-    : never
-  message: string
-  scannedCount: number
-  importedCount: number
-  delayMs: number
-}
-
-const syncSteps: SyncStep[] = [
-  {
-    phase: "launching-profile",
-    message: "Opening the persistent browser profile for the next capture worker.",
-    scannedCount: 0,
-    importedCount: 0,
-    delayMs: 900,
-  },
-  {
-    phase: "checking-session",
-    message: "Checking whether the signed-in X session is already available.",
-    scannedCount: 0,
-    importedCount: 0,
-    delayMs: 1100,
-  },
-  {
-    phase: "capturing-likes",
-    message: "Simulating a first pass over the Likes timeline through the orchestration boundary.",
-    scannedCount: 18,
-    importedCount: 6,
-    delayMs: 1400,
-  },
-  {
-    phase: "normalizing-results",
-    message: "Normalizing captured rows into the local archive schema.",
-    scannedCount: 26,
-    importedCount: 9,
-    delayMs: 900,
-  },
-]
+import { PlaywrightSync } from "./playwright-sync"
 
 export class SyncService {
   private readonly archiveStore: ArchiveStore
+  private readonly playwrightSync: PlaywrightSync
   private activeRunId: string | null = null
 
   constructor(archiveStore: ArchiveStore) {
     this.archiveStore = archiveStore
+    this.playwrightSync = new PlaywrightSync({
+      profileDirectory: path.join(this.archiveStore.dataDirectory, "playwright-profile"),
+    })
   }
 
   getSyncState(): SyncState {
@@ -87,42 +50,57 @@ export class SyncService {
       finishedAt: null,
       scannedCount: 0,
       importedCount: 0,
-      message: "Preparing the sync orchestration loop.",
+      message: "Preparing the Playwright capture session.",
     })
 
     this.activeRunId = run.id
-    this.advanceSync(run.id, 0)
+    console.log(`[sync] started run ${run.id}`)
+    void this.runPlaywrightSync(run.id)
 
     return this.getSyncState()
   }
 
-  private advanceSync(runId: string, stepIndex: number) {
-    const step = syncSteps[stepIndex]
+  private async runPlaywrightSync(runId: string) {
+    try {
+      const result = await this.playwrightSync.run((progress) => {
+        console.log(
+          `[sync] ${runId} ${progress.phase}: ${progress.message} (${progress.scannedCount} scanned, ${progress.importedCount} imported)`
+        )
+        this.archiveStore.updateSyncRun(runId, {
+          status: "running",
+          phase: progress.phase,
+          scannedCount: progress.scannedCount,
+          importedCount: progress.importedCount,
+          message: progress.message,
+        })
+      })
 
-    if (!step) {
       this.archiveStore.updateSyncRun(runId, {
         status: "completed",
-        phase: "completed",
+        phase: result.phase,
         finishedAt: new Date().toISOString(),
-        scannedCount: 26,
-        importedCount: 9,
-        message:
-          "Sync orchestration finished. The next slice will swap this simulated flow for a Playwright-backed capture worker.",
+        scannedCount: result.scannedCount,
+        importedCount: result.importedCount,
+        message: result.message,
       })
+      console.log(
+        `[sync] ${runId} completed: ${result.message} (${result.scannedCount} scanned, ${result.importedCount} imported)`
+      )
+    } catch (error) {
+      await this.playwrightSync.dispose().catch(() => undefined)
+
+      const message = error instanceof Error ? error.message : "Unknown sync failure"
+      console.error(`[sync] ${runId} failed: ${message}`)
+
+      this.archiveStore.updateSyncRun(runId, {
+        status: "failed",
+        phase: "failed",
+        finishedAt: new Date().toISOString(),
+        message,
+      })
+    } finally {
+      console.log(`[sync] finished run ${runId}`)
       this.activeRunId = null
-      return
     }
-
-    this.archiveStore.updateSyncRun(runId, {
-      status: "running",
-      phase: step.phase,
-      scannedCount: step.scannedCount,
-      importedCount: step.importedCount,
-      message: step.message,
-    })
-
-    setTimeout(() => {
-      this.advanceSync(runId, stepIndex + 1)
-    }, step.delayMs)
   }
 }

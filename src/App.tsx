@@ -45,7 +45,7 @@ const browserPreviewState: DesktopAppState = {
 }
 
 const nextMilestones = [
-  "Replace the simulated sync runner with a Playwright worker that owns login and scrolling.",
+  "Replace the login-ready Playwright probe with real Likes timeline scrolling and collection.",
   "Persist normalized tweets, authors, and local media paths from real captured likes.",
   "Add media download retries and offline archive viewing for downloaded assets.",
 ]
@@ -264,8 +264,9 @@ export function App() {
               </h1>
               <p className="max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">
                 The app now owns a local archive and a desktop-managed sync loop.
-                Capture is still simulated, but the IPC boundary, persistence, and
-                control surface are now in place for a real Playwright worker.
+                Starting a sync opens a persistent Playwright profile, waits for an
+                authenticated X session when needed, and hands off to the real capture
+                boundary that the next slice will deepen.
               </p>
             </div>
 
@@ -277,7 +278,7 @@ export function App() {
                 variant="outline"
                 onClick={() =>
                   setBridgeStatus(
-                    "Next implementation target: replace the simulated loop with a Playwright capture worker."
+                    "Next implementation target: scroll the Likes timeline and normalize real rows from the Playwright session."
                   )
                 }
               >
@@ -425,8 +426,8 @@ export function App() {
                     </div>
                   ) : (
                     <p className="mt-4 text-sm leading-6 text-muted-foreground">
-                      No sync is running. Starting one now exercises the orchestration
-                      boundary that a Playwright worker will plug into next.
+                      No sync is running. Starting one now opens the persistent browser
+                      profile and waits for an authenticated X session before capture.
                     </p>
                   )}
                 </div>

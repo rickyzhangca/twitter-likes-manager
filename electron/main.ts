@@ -133,6 +133,10 @@ app.whenReady().then(async () => {
   registerIpcHandlers()
   await createMainWindow()
 
+  if (process.env.TLM_AUTOSTART_SYNC === "1") {
+    syncService.startSync()
+  }
+
   app.on("activate", async () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       await createMainWindow()

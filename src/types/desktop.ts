@@ -60,6 +60,7 @@ export type SyncPhase =
   | "idle"
   | "launching-profile"
   | "checking-session"
+  | "awaiting-login"
   | "capturing-likes"
   | "normalizing-results"
   | "completed"

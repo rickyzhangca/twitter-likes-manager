@@ -18,7 +18,7 @@ export default defineConfig(({ mode }) => ({
               vite: {
                 build: {
                   rollupOptions: {
-                    external: ["node:sqlite"],
+                    external: [/^node:sqlite$/, /^playwright($|\/)/, /^playwright-core($|\/)/, /^chromium-bidi($|\/)/],
                   },
                 },
               },
