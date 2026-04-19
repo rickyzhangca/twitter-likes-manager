@@ -2,6 +2,7 @@
   "name": "twitter-likes-manager",
   "private": true,
   "version": "0.0.1",
+  "main": "dist-electron/main.js",
   "type": "module",
   "scripts": {
     "dev": "vite",

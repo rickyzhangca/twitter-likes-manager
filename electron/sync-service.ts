@@ -14,6 +14,7 @@ export class SyncService {
     this.archiveStore = archiveStore
     this.playwrightSync = new PlaywrightSync({
       profileDirectory: path.join(this.archiveStore.dataDirectory, "playwright-profile"),
+      captureDirectory: path.join(this.archiveStore.dataDirectory, "sync-captures"),
     })
   }
 

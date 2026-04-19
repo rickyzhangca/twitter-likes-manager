@@ -162,7 +162,7 @@ export class ArchiveStore {
           label: "Capture worker",
           status: "ready",
           detail:
-            "A Playwright profile can launch and hold at the X login boundary; timeline capture is the next slice.",
+            "A Playwright profile can launch, authenticate, and save raw Likes-response fixtures for parser work.",
         },
       ],
     }
