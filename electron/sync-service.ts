@@ -69,7 +69,7 @@ export class SyncService {
 
 	private async runPlaywrightSync(runId: string) {
 		try {
-			const result = await this.playwrightSync.run((progress) => {
+			const captureResult = await this.playwrightSync.run((progress) => {
 				console.log(
 					`[sync] ${runId} ${progress.phase}: ${progress.message} (${progress.scannedCount} scanned, ${progress.importedCount} imported)`,
 				);
@@ -81,6 +81,35 @@ export class SyncService {
 					message: progress.message,
 				});
 			});
+
+			let result = captureResult;
+
+			if (captureResult.artifactPath) {
+				const message =
+					"Normalizing captured Likes responses into the local archive.";
+
+				console.log(`[sync] ${runId} normalizing-results: ${message}`);
+				this.archiveStore.updateSyncRun(runId, {
+					status: "running",
+					phase: "normalizing-results",
+					scannedCount: captureResult.scannedCount,
+					importedCount: 0,
+					message,
+				});
+
+				const importResult = this.archiveStore.importLikesCapture(
+					captureResult.artifactPath,
+				);
+
+				result = {
+					...captureResult,
+					scannedCount: importResult.scannedCount,
+					importedCount: importResult.importedCount,
+					message: importResult.importedCount
+						? `Imported ${importResult.importedCount} liked tweets from ${importResult.likesResponseCount} captured Likes response${importResult.likesResponseCount === 1 ? "" : "s"}.`
+						: captureResult.message,
+				};
+			}
 
 			this.archiveStore.updateSyncRun(runId, {
 				status: "completed",

@@ -30,6 +30,10 @@ type ProbeResult = {
 	artifactPath: string | null;
 };
 
+type SyncRunResult = SyncProgress & {
+	artifactPath: string | null;
+};
+
 const homeUrl = "https://x.com/home";
 const loginUrl = "https://x.com/login";
 const loginWaitTimeoutMs = 10 * 60 * 1000;
@@ -47,7 +51,7 @@ export class PlaywrightSync {
 
 	async run(
 		onProgress: (progress: SyncProgress) => Promise<void> | void,
-	): Promise<SyncProgress> {
+	): Promise<SyncRunResult> {
 		await onProgress({
 			phase: "launching-profile",
 			message: "Opening a persistent Chromium profile for the X login session.",
@@ -101,7 +105,8 @@ export class PlaywrightSync {
 				? `Saved ${probeResult.capturedResponseCount} raw Likes responses to ${probeResult.artifactPath}.`
 				: "Login session is ready, but no raw Likes responses were captured yet.",
 			scannedCount: probeResult.visibleTweetCount,
-			importedCount: probeResult.capturedResponseCount,
+			importedCount: 0,
+			artifactPath: probeResult.artifactPath,
 		};
 
 		await this.dispose();

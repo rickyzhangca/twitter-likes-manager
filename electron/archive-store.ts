@@ -10,6 +10,7 @@ import type {
   SyncRun,
   SyncRunStatus,
 } from "../src/types/desktop"
+import { parseLikesCaptureArtifact } from "./likes-import.ts"
 
 type ArchiveStoreOptions = {
   dataDirectory: string
@@ -162,9 +163,117 @@ export class ArchiveStore {
           label: "Capture worker",
           status: "ready",
           detail:
-            "A Playwright profile can launch, authenticate, and save raw Likes-response fixtures for parser work.",
+            "A Playwright profile can capture Likes responses and normalize them into the local archive.",
         },
       ],
+    }
+  }
+
+  importLikesCapture(artifactPath: string) {
+    const parsedCapture = parseLikesCaptureArtifact(artifactPath)
+
+    if (parsedCapture.tweets.length === 0) {
+      return {
+        scannedCount: 0,
+        importedCount: 0,
+        likesResponseCount: parsedCapture.likesResponseCount,
+      }
+    }
+
+    const upsertAuthor = this.database.prepare(
+      `
+        INSERT INTO authors (id, username, display_name, avatar_url)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          username = excluded.username,
+          display_name = excluded.display_name,
+          avatar_url = excluded.avatar_url
+      `,
+    )
+    const upsertTweet = this.database.prepare(
+      `
+        INSERT INTO tweets (
+          id,
+          author_id,
+          url,
+          text,
+          liked_at,
+          created_at,
+          state,
+          like_count,
+          reply_count
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          author_id = excluded.author_id,
+          url = excluded.url,
+          text = excluded.text,
+          liked_at = excluded.liked_at,
+          created_at = excluded.created_at,
+          state = excluded.state,
+          like_count = excluded.like_count,
+          reply_count = excluded.reply_count
+      `,
+    )
+    const deleteMediaForTweet = this.database.prepare(
+      `
+        DELETE FROM media
+        WHERE tweet_id = ?
+      `,
+    )
+    const insertMedia = this.database.prepare(
+      `
+        INSERT INTO media (id, tweet_id, kind, remote_url, local_path)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          tweet_id = excluded.tweet_id,
+          kind = excluded.kind,
+          remote_url = excluded.remote_url,
+          local_path = excluded.local_path
+      `,
+    )
+
+    this.database.exec("BEGIN")
+
+    try {
+      this.removeSeedData()
+
+      for (const tweet of parsedCapture.tweets) {
+        upsertAuthor.run(
+          tweet.authorId,
+          tweet.username,
+          tweet.displayName,
+          tweet.avatarUrl,
+        )
+
+        upsertTweet.run(
+          tweet.id,
+          tweet.authorId,
+          tweet.url,
+          tweet.text,
+          tweet.likedAt,
+          tweet.createdAt,
+          tweet.state,
+          tweet.likeCount,
+          tweet.replyCount,
+        )
+
+        deleteMediaForTweet.run(tweet.id)
+
+        for (const media of tweet.media) {
+          insertMedia.run(media.id, tweet.id, media.kind, media.remoteUrl, null)
+        }
+      }
+
+      this.database.exec("COMMIT")
+    } catch (error) {
+      this.database.exec("ROLLBACK")
+      throw error
+    }
+
+    return {
+      scannedCount: parsedCapture.tweets.length,
+      importedCount: parsedCapture.tweets.length,
+      likesResponseCount: parsedCapture.likesResponseCount,
     }
   }
 
@@ -517,6 +626,14 @@ export class ArchiveStore {
       this.database.exec("ROLLBACK")
       throw error
     }
+  }
+
+  private removeSeedData() {
+    this.database.exec(`
+      DELETE FROM media WHERE id LIKE 'media-%';
+      DELETE FROM tweets WHERE id LIKE 'tweet-%';
+      DELETE FROM authors WHERE id LIKE 'author-%';
+    `)
   }
 
   private mapSyncRun(row: SyncRunRow): SyncRun {
