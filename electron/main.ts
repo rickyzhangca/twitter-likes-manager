@@ -3,6 +3,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 
 import { ArchiveStore } from "./archive-store"
+import { SyncService } from "./sync-service"
 import {
   desktopChannels,
   type DesktopAppState,
@@ -12,6 +13,7 @@ const applicationName = "Twitter Likes Manager"
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const preloadPath = path.join(__dirname, "preload.mjs")
 let archiveStore: ArchiveStore | null = null
+let syncService: SyncService | null = null
 
 app.setName(applicationName)
 app.setPath("userData", path.join(app.getPath("appData"), applicationName))
@@ -68,6 +70,20 @@ function registerIpcHandlers() {
 
     return archiveStore.getArchiveSnapshot()
   })
+  ipcMain.handle(desktopChannels.getSyncState, () => {
+    if (!syncService) {
+      throw new Error("Sync service is not initialized")
+    }
+
+    return syncService.getSyncState()
+  })
+  ipcMain.handle(desktopChannels.startSync, () => {
+    if (!syncService) {
+      throw new Error("Sync service is not initialized")
+    }
+
+    return syncService.startSync()
+  })
   ipcMain.handle(desktopChannels.ping, () => "pong")
   ipcMain.handle(desktopChannels.openDataDirectory, async () => {
     const result = await shell.openPath(app.getPath("userData"))
@@ -113,6 +129,7 @@ process.on("message", (message) => {
 
 app.whenReady().then(async () => {
   archiveStore = new ArchiveStore({ dataDirectory: app.getPath("userData") })
+  syncService = new SyncService(archiveStore)
   registerIpcHandlers()
   await createMainWindow()
 

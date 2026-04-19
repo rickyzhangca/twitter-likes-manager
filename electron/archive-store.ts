@@ -6,6 +6,9 @@ import type {
   ArchiveSnapshot,
   ArchiveTweetPreview,
   DesktopAppState,
+  SyncPhase,
+  SyncRun,
+  SyncRunStatus,
 } from "../src/types/desktop"
 
 type ArchiveStoreOptions = {
@@ -26,6 +29,18 @@ type TweetRow = {
   username: string
   display_name: string
   avatar_url: string | null
+}
+
+type SyncRunRow = {
+  id: string
+  status: SyncRunStatus
+  phase: SyncPhase
+  source: SyncRun["source"]
+  started_at: string
+  finished_at: string | null
+  scanned_count: number
+  imported_count: number
+  message: string
 }
 
 const seededAuthors = [
@@ -250,8 +265,151 @@ export class ArchiveStore {
     }
   }
 
+  listSyncRuns(limit = 8): SyncRun[] {
+    const rows = this.database
+      .prepare(
+        `
+          SELECT
+            id,
+            status,
+            phase,
+            source,
+            started_at,
+            finished_at,
+            scanned_count,
+            imported_count,
+            message
+          FROM sync_runs
+          ORDER BY started_at DESC
+          LIMIT ?
+        `
+      )
+      .all(limit) as SyncRunRow[]
+
+    return rows.map((row) => this.mapSyncRun(row))
+  }
+
+  getSyncRun(id: string): SyncRun | null {
+    const row = this.database
+      .prepare(
+        `
+          SELECT
+            id,
+            status,
+            phase,
+            source,
+            started_at,
+            finished_at,
+            scanned_count,
+            imported_count,
+            message
+          FROM sync_runs
+          WHERE id = ?
+        `
+      )
+      .get(id) as SyncRunRow | undefined
+
+    return row ? this.mapSyncRun(row) : null
+  }
+
+  createSyncRun(run: SyncRun): SyncRun {
+    this.database
+      .prepare(
+        `
+          INSERT INTO sync_runs (
+            id,
+            status,
+            phase,
+            source,
+            started_at,
+            finished_at,
+            scanned_count,
+            imported_count,
+            message
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `
+      )
+      .run(
+        run.id,
+        run.status,
+        run.phase,
+        run.source,
+        run.startedAt,
+        run.finishedAt,
+        run.scannedCount,
+        run.importedCount,
+        run.message
+      )
+
+    return this.getSyncRun(run.id) ?? run
+  }
+
+  updateSyncRun(
+    id: string,
+    updates: {
+      status?: SyncRunStatus
+      phase?: SyncPhase
+      finishedAt?: string | null
+      scannedCount?: number
+      importedCount?: number
+      message?: string
+    }
+  ): SyncRun {
+    const currentRun = this.getSyncRun(id)
+
+    if (!currentRun) {
+      throw new Error(`Sync run ${id} does not exist`)
+    }
+
+    this.database
+      .prepare(
+        `
+          UPDATE sync_runs
+          SET
+            status = ?,
+            phase = ?,
+            finished_at = ?,
+            scanned_count = ?,
+            imported_count = ?,
+            message = ?
+          WHERE id = ?
+        `
+      )
+      .run(
+        updates.status ?? currentRun.status,
+        updates.phase ?? currentRun.phase,
+        updates.finishedAt === undefined
+          ? currentRun.finishedAt
+          : updates.finishedAt,
+        updates.scannedCount ?? currentRun.scannedCount,
+        updates.importedCount ?? currentRun.importedCount,
+        updates.message ?? currentRun.message,
+        id
+      )
+
+    const nextRun = this.getSyncRun(id)
+
+    if (!nextRun) {
+      throw new Error(`Sync run ${id} disappeared after update`)
+    }
+
+    return nextRun
+  }
+
   private ensureSchema() {
     this.database.exec(`
+      CREATE TABLE IF NOT EXISTS sync_runs (
+        id TEXT PRIMARY KEY,
+        status TEXT NOT NULL,
+        phase TEXT NOT NULL,
+        source TEXT NOT NULL,
+        started_at TEXT NOT NULL,
+        finished_at TEXT,
+        scanned_count INTEGER NOT NULL DEFAULT 0,
+        imported_count INTEGER NOT NULL DEFAULT 0,
+        message TEXT NOT NULL
+      ) STRICT;
+
       CREATE TABLE IF NOT EXISTS authors (
         id TEXT PRIMARY KEY,
         username TEXT NOT NULL,
@@ -358,6 +516,20 @@ export class ArchiveStore {
     } catch (error) {
       this.database.exec("ROLLBACK")
       throw error
+    }
+  }
+
+  private mapSyncRun(row: SyncRunRow): SyncRun {
+    return {
+      id: row.id,
+      status: row.status,
+      phase: row.phase,
+      source: row.source,
+      startedAt: row.started_at,
+      finishedAt: row.finished_at,
+      scannedCount: row.scanned_count,
+      importedCount: row.imported_count,
+      message: row.message,
     }
   }
 }

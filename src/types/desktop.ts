@@ -1,6 +1,8 @@
 export const desktopChannels = {
   getAppState: "desktop:get-app-state",
   getArchiveSnapshot: "desktop:get-archive-snapshot",
+  getSyncState: "desktop:get-sync-state",
+  startSync: "desktop:start-sync",
   ping: "desktop:ping",
   openDataDirectory: "desktop:open-data-directory",
 } as const
@@ -54,6 +56,35 @@ export type ArchiveSnapshot = {
   tweets: ArchiveTweetPreview[]
 }
 
+export type SyncPhase =
+  | "idle"
+  | "launching-profile"
+  | "checking-session"
+  | "capturing-likes"
+  | "normalizing-results"
+  | "completed"
+  | "failed"
+
+export type SyncRunStatus = "idle" | "running" | "completed" | "failed"
+
+export type SyncRun = {
+  id: string
+  status: SyncRunStatus
+  phase: SyncPhase
+  source: "manual"
+  startedAt: string
+  finishedAt: string | null
+  scannedCount: number
+  importedCount: number
+  message: string
+}
+
+export type SyncState = {
+  canStart: boolean
+  activeRun: SyncRun | null
+  recentRuns: SyncRun[]
+}
+
 export type DesktopAppState = {
   runtime: "browser" | "electron"
   appName: string
@@ -72,6 +103,8 @@ export type DesktopAppState = {
 export type DesktopBridge = {
   getAppState: () => Promise<DesktopAppState>
   getArchiveSnapshot: () => Promise<ArchiveSnapshot>
+  getSyncState: () => Promise<SyncState>
+  startSync: () => Promise<SyncState>
   ping: () => Promise<string>
   openDataDirectory: () => Promise<void>
 }

@@ -6,6 +6,8 @@ import type {
   ArchiveTweetPreview,
   DesktopAppState,
   DesktopService,
+  SyncRun,
+  SyncState,
 } from "@/types/desktop"
 
 const browserPreviewState: DesktopAppState = {
@@ -43,9 +45,9 @@ const browserPreviewState: DesktopAppState = {
 }
 
 const nextMilestones = [
-  "Add the SQLite schema and app data directories managed by Electron.",
-  "Wire a Playwright worker that signs in and captures the Likes timeline.",
-  "Persist normalized tweets, authors, and local media paths for offline viewing.",
+  "Replace the simulated sync runner with a Playwright worker that owns login and scrolling.",
+  "Persist normalized tweets, authors, and local media paths from real captured likes.",
+  "Add media download retries and offline archive viewing for downloaded assets.",
 ]
 
 const plannedScreens = [
@@ -75,6 +77,12 @@ const browserPreviewArchive: ArchiveSnapshot = {
   tweets: [],
 }
 
+const browserPreviewSyncState: SyncState = {
+  canStart: true,
+  activeRun: null,
+  recentRuns: [],
+}
+
 function formatDate(isoString: string | null) {
   if (!isoString) {
     return "not available"
@@ -98,6 +106,18 @@ function stateTone(tweet: ArchiveTweetPreview) {
   return "border-destructive/30 bg-destructive/10 text-foreground"
 }
 
+function syncTone(run: SyncRun) {
+  if (run.status === "completed") {
+    return "border-primary/30 bg-primary/8 text-foreground"
+  }
+
+  if (run.status === "failed") {
+    return "border-destructive/30 bg-destructive/10 text-foreground"
+  }
+
+  return "border-border bg-background/80 text-foreground"
+}
+
 function serviceTone(service: DesktopService) {
   if (service.status === "ready") {
     return "border-primary/40 bg-primary/8 text-foreground"
@@ -113,11 +133,13 @@ function serviceTone(service: DesktopService) {
 export function App() {
   const [appState, setAppState] = useState<DesktopAppState>(browserPreviewState)
   const [archive, setArchive] = useState<ArchiveSnapshot>(browserPreviewArchive)
+  const [syncState, setSyncState] = useState<SyncState>(browserPreviewSyncState)
   const [bridgeStatus, setBridgeStatus] = useState(
     "Browser preview mode. Desktop services are idle until Electron boots."
   )
   const [isOpeningDataDir, setIsOpeningDataDir] = useState(false)
   const [isLoadingArchive, setIsLoadingArchive] = useState(false)
+  const [isStartingSync, setIsStartingSync] = useState(false)
 
   useEffect(() => {
     let isDisposed = false
@@ -129,9 +151,10 @@ export function App() {
 
       setIsLoadingArchive(true)
 
-      const [nextState, nextArchive, pong] = await Promise.all([
+      const [nextState, nextArchive, nextSyncState, pong] = await Promise.all([
         window.twitterLikesDesktop.getAppState(),
         window.twitterLikesDesktop.getArchiveSnapshot(),
+        window.twitterLikesDesktop.getSyncState(),
         window.twitterLikesDesktop.ping(),
       ])
 
@@ -141,6 +164,7 @@ export function App() {
 
       setAppState(nextState)
       setArchive(nextArchive)
+      setSyncState(nextSyncState)
       setBridgeStatus(`Desktop bridge online: ${pong}`)
       setIsLoadingArchive(false)
     }
@@ -160,6 +184,31 @@ export function App() {
       isDisposed = true
     }
   }, [])
+
+  useEffect(() => {
+    const desktopBridge = window.twitterLikesDesktop
+
+    if (!desktopBridge || !syncState.activeRun) {
+      return
+    }
+
+    const timer = window.setInterval(() => {
+      void desktopBridge
+        .getSyncState()
+        .then((nextSyncState) => {
+          setSyncState(nextSyncState)
+        })
+        .catch((error: unknown) => {
+          const message =
+            error instanceof Error ? error.message : "Unknown sync polling error"
+          setBridgeStatus(`Sync polling failed: ${message}`)
+        })
+    }, 1000)
+
+    return () => {
+      window.clearInterval(timer)
+    }
+  }, [syncState.activeRun])
 
   async function handleOpenDataDirectory() {
     if (!window.twitterLikesDesktop) {
@@ -181,6 +230,26 @@ export function App() {
     }
   }
 
+  async function handleStartSync() {
+    if (!window.twitterLikesDesktop) {
+      setBridgeStatus("Sync controls are only available in the Electron shell.")
+      return
+    }
+
+    setIsStartingSync(true)
+
+    try {
+      const nextSyncState = await window.twitterLikesDesktop.startSync()
+      setSyncState(nextSyncState)
+      setBridgeStatus("Started the first desktop-managed sync run.")
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not start sync"
+      setBridgeStatus(`Start sync failed: ${message}`)
+    } finally {
+      setIsStartingSync(false)
+    }
+  }
+
   return (
     <div className="min-h-svh bg-[radial-gradient(circle_at_top_left,_color-mix(in_oklab,_var(--color-primary)_14%,_transparent),_transparent_32%),linear-gradient(180deg,color-mix(in_oklab,_var(--color-background)_88%,_black_12%),var(--color-background))]">
       <div className="mx-auto flex min-h-svh w-full max-w-7xl flex-col gap-8 px-6 py-8 lg:px-10 lg:py-10">
@@ -194,9 +263,9 @@ export function App() {
                 Local-first archive for your liked tweets, built as a desktop app.
               </h1>
               <p className="max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">
-                This first slice wires the existing React renderer into Electron,
-                exposes a secure desktop bridge, and turns the placeholder page
-                into a concrete archive dashboard scaffold.
+                The app now owns a local archive and a desktop-managed sync loop.
+                Capture is still simulated, but the IPC boundary, persistence, and
+                control surface are now in place for a real Playwright worker.
               </p>
             </div>
 
@@ -204,7 +273,14 @@ export function App() {
               <Button onClick={handleOpenDataDirectory} disabled={isOpeningDataDir}>
                 {isOpeningDataDir ? "Opening data directory..." : "Open data directory"}
               </Button>
-              <Button variant="outline" onClick={() => setBridgeStatus("Next implementation target: SQLite schema and sync jobs.") }>
+              <Button
+                variant="outline"
+                onClick={() =>
+                  setBridgeStatus(
+                    "Next implementation target: replace the simulated loop with a Playwright capture worker."
+                  )
+                }
+              >
                 Next implementation target
               </Button>
             </div>
@@ -284,6 +360,108 @@ export function App() {
           </section>
 
           <section className="grid gap-6">
+            <div className="border border-border bg-card p-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+                    Sync control
+                  </p>
+                  <h2 className="mt-2 text-xl font-medium text-foreground">
+                    Desktop-managed job orchestration
+                  </h2>
+                </div>
+                <Button
+                  onClick={handleStartSync}
+                  disabled={!syncState.canStart || isStartingSync}
+                >
+                  {isStartingSync
+                    ? "Starting sync..."
+                    : syncState.activeRun
+                      ? "Sync running"
+                      : "Start sync"}
+                </Button>
+              </div>
+
+              <div className="mt-5 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+                <div className="border border-border bg-background/80 p-4">
+                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                    Active run
+                  </p>
+                  {syncState.activeRun ? (
+                    <div className={`mt-4 border p-4 ${syncTone(syncState.activeRun)}`}>
+                      <div className="flex items-center justify-between gap-3 text-xs uppercase tracking-[0.2em]">
+                        <span>{syncState.activeRun.phase}</span>
+                        <span>{syncState.activeRun.status}</span>
+                      </div>
+                      <p className="mt-3 text-sm leading-6 text-foreground">
+                        {syncState.activeRun.message}
+                      </p>
+                      <dl className="mt-4 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
+                        <div>
+                          <dt>Started</dt>
+                          <dd className="mt-1 text-foreground">
+                            {formatDate(syncState.activeRun.startedAt)}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>Imported</dt>
+                          <dd className="mt-1 text-foreground">
+                            {syncState.activeRun.importedCount} rows
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>Scanned</dt>
+                          <dd className="mt-1 text-foreground">
+                            {syncState.activeRun.scannedCount} likes
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>Source</dt>
+                          <dd className="mt-1 text-foreground">
+                            {syncState.activeRun.source}
+                          </dd>
+                        </div>
+                      </dl>
+                    </div>
+                  ) : (
+                    <p className="mt-4 text-sm leading-6 text-muted-foreground">
+                      No sync is running. Starting one now exercises the orchestration
+                      boundary that a Playwright worker will plug into next.
+                    </p>
+                  )}
+                </div>
+
+                <div className="border border-border bg-background/80 p-4">
+                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                    Recent runs
+                  </p>
+                  {syncState.recentRuns.length === 0 ? (
+                    <p className="mt-4 text-sm leading-6 text-muted-foreground">
+                      No runs recorded yet. The first manual run will be stored in the
+                      local archive database.
+                    </p>
+                  ) : (
+                    <div className="mt-4 grid gap-3">
+                      {syncState.recentRuns.map((run) => (
+                        <article key={run.id} className={`border p-3 ${syncTone(run)}`}>
+                          <div className="flex items-center justify-between gap-3 text-xs uppercase tracking-[0.2em]">
+                            <span>{run.phase}</span>
+                            <span>{run.status}</span>
+                          </div>
+                          <p className="mt-2 text-sm leading-6 text-foreground">
+                            {run.message}
+                          </p>
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            {formatDate(run.startedAt)} · {run.scannedCount} scanned · {run.importedCount} imported
+                          </p>
+                        </article>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
             <div className="border border-border bg-card p-6">
               <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
                 Local archive
