@@ -1,9 +1,7 @@
-import type { DesktopBridge } from "./desktop"
+import type { DesktopBridge } from "./desktop";
 
 declare global {
-  interface Window {
-    twitterLikesDesktop?: DesktopBridge
-  }
+	interface Window {
+		twitterLikesDesktop?: DesktopBridge;
+	}
 }
-
-export {}
