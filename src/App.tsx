@@ -6,9 +6,14 @@ import type {
   ArchiveTweetPreview,
   DesktopAppState,
   DesktopService,
+  SyncStartOptions,
   SyncRun,
   SyncState,
 } from "@/types/desktop"
+
+const defaultSyncLimit = 200
+const maxSyncLimit = 1000
+const syncLimitStorageKey = "tlm.sync-limit"
 
 const browserPreviewState: DesktopAppState = {
   runtime: "browser",
@@ -130,6 +135,22 @@ function serviceTone(service: DesktopService) {
   return "border-border bg-card text-muted-foreground"
 }
 
+function normalizeSyncLimit(value: string) {
+  const parsedValue = Number.parseInt(value, 10)
+
+  if (!Number.isFinite(parsedValue)) {
+    return defaultSyncLimit
+  }
+
+  return Math.min(maxSyncLimit, Math.max(1, parsedValue))
+}
+
+function loadStoredSyncLimit() {
+  const storedValue = window.localStorage.getItem(syncLimitStorageKey)
+
+  return storedValue ? String(normalizeSyncLimit(storedValue)) : String(defaultSyncLimit)
+}
+
 export function App() {
   const [appState, setAppState] = useState<DesktopAppState>(browserPreviewState)
   const [archive, setArchive] = useState<ArchiveSnapshot>(browserPreviewArchive)
@@ -140,6 +161,7 @@ export function App() {
   const [isOpeningDataDir, setIsOpeningDataDir] = useState(false)
   const [isLoadingArchive, setIsLoadingArchive] = useState(false)
   const [isStartingSync, setIsStartingSync] = useState(false)
+  const [syncLimitInput, setSyncLimitInput] = useState(() => loadStoredSyncLimit())
 
   useEffect(() => {
     let isDisposed = false
@@ -195,8 +217,13 @@ export function App() {
     const timer = window.setInterval(() => {
       void desktopBridge
         .getSyncState()
-        .then((nextSyncState) => {
+        .then(async (nextSyncState) => {
           setSyncState(nextSyncState)
+
+          if (!nextSyncState.activeRun) {
+            const nextArchive = await desktopBridge.getArchiveSnapshot()
+            setArchive(nextArchive)
+          }
         })
         .catch((error: unknown) => {
           const message =
@@ -239,9 +266,16 @@ export function App() {
     setIsStartingSync(true)
 
     try {
-      const nextSyncState = await window.twitterLikesDesktop.startSync()
+      const options: SyncStartOptions = {
+        maxTweets: normalizeSyncLimit(syncLimitInput),
+      }
+      const nextSyncState = await window.twitterLikesDesktop.startSync(options)
       setSyncState(nextSyncState)
-      setBridgeStatus("Started the first desktop-managed sync run.")
+      window.localStorage.setItem(syncLimitStorageKey, String(options.maxTweets))
+      setSyncLimitInput(String(options.maxTweets))
+      setBridgeStatus(
+        `Started a desktop-managed sync run with a ${options.maxTweets}-tweet limit.`,
+      )
     } catch (error) {
       const message = error instanceof Error ? error.message : "Could not start sync"
       setBridgeStatus(`Start sync failed: ${message}`)
@@ -370,6 +404,11 @@ export function App() {
                   <h2 className="mt-2 text-xl font-medium text-foreground">
                     Desktop-managed job orchestration
                   </h2>
+                  <p className="mt-3 max-w-xl text-sm leading-6 text-muted-foreground">
+                    Set a per-run import cap before starting sync. The worker will keep
+                    scrolling and collecting Likes until it reaches the limit or the
+                    timeline stops yielding more results.
+                  </p>
                 </div>
                 <Button
                   onClick={handleStartSync}
@@ -381,6 +420,32 @@ export function App() {
                       ? "Sync running"
                       : "Start sync"}
                 </Button>
+              </div>
+
+              <div className="mt-5 border border-border bg-background/80 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                  <label className="grid gap-2 text-sm text-foreground">
+                    <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                      Sync limit
+                    </span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={maxSyncLimit}
+                      step={1}
+                      inputMode="numeric"
+                      value={syncLimitInput}
+                      disabled={Boolean(syncState.activeRun) || isStartingSync}
+                      onChange={(event) => setSyncLimitInput(event.target.value)}
+                      className="w-full min-w-40 border border-border bg-card px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-primary sm:w-44"
+                    />
+                  </label>
+                  <p className="max-w-xl text-xs leading-6 text-muted-foreground">
+                    Allowed range: 1 to {maxSyncLimit}. Default: {defaultSyncLimit}. Use a
+                    smaller cap when you want a quick checkpoint instead of pulling a large
+                    Likes history in one run.
+                  </p>
+                </div>
               </div>
 
               <div className="mt-5 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">

@@ -169,8 +169,8 @@ export class ArchiveStore {
     }
   }
 
-  importLikesCapture(artifactPath: string) {
-    const parsedCapture = parseLikesCaptureArtifact(artifactPath)
+  importLikesCapture(artifactPath: string, maxTweets?: number) {
+    const parsedCapture = parseLikesCaptureArtifact(artifactPath, maxTweets)
 
     if (parsedCapture.tweets.length === 0) {
       return {

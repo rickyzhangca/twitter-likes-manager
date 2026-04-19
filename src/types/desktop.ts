@@ -80,6 +80,10 @@ export type SyncRun = {
   message: string
 }
 
+export type SyncStartOptions = {
+  maxTweets: number
+}
+
 export type SyncState = {
   canStart: boolean
   activeRun: SyncRun | null
@@ -105,7 +109,7 @@ export type DesktopBridge = {
   getAppState: () => Promise<DesktopAppState>
   getArchiveSnapshot: () => Promise<ArchiveSnapshot>
   getSyncState: () => Promise<SyncState>
-  startSync: () => Promise<SyncState>
+  startSync: (options: SyncStartOptions) => Promise<SyncState>
   ping: () => Promise<string>
   openDataDirectory: () => Promise<void>
 }

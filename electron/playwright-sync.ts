@@ -17,6 +17,10 @@ type PlaywrightSyncOptions = {
 	captureDirectory: string;
 };
 
+type SyncCaptureOptions = {
+	maxTweets: number;
+};
+
 type CapturedResponse = {
 	url: string;
 	status: number;
@@ -50,6 +54,7 @@ export class PlaywrightSync {
 	}
 
 	async run(
+		options: SyncCaptureOptions,
 		onProgress: (progress: SyncProgress) => Promise<void> | void,
 	): Promise<SyncRunResult> {
 		await onProgress({
@@ -91,18 +96,17 @@ export class PlaywrightSync {
 
 		await onProgress({
 			phase: "capturing-likes",
-			message:
-				"Session detected. Inspecting the visible Likes timeline in the Playwright profile.",
+			message: `Session detected. Capturing up to ${options.maxTweets} liked tweets from the Playwright profile.`,
 			scannedCount: 0,
 			importedCount: 0,
 		});
 
-		const probeResult = await this.captureLikesProbe(page);
+		const probeResult = await this.captureLikesProbe(page, options.maxTweets);
 
 		const result = {
 			phase: "completed" as const,
 			message: probeResult.artifactPath
-				? `Saved ${probeResult.capturedResponseCount} raw Likes responses to ${probeResult.artifactPath}.`
+				? `Saved ${probeResult.capturedResponseCount} raw Likes responses for up to ${options.maxTweets} tweets to ${probeResult.artifactPath}.`
 				: "Login session is ready, but no raw Likes responses were captured yet.",
 			scannedCount: probeResult.visibleTweetCount,
 			importedCount: 0,
@@ -148,8 +152,12 @@ export class PlaywrightSync {
 		return this.page;
 	}
 
-	private async captureLikesProbe(page: Page): Promise<ProbeResult> {
+	private async captureLikesProbe(
+		page: Page,
+		maxTweets: number,
+	): Promise<ProbeResult> {
 		const capturedResponses: CapturedResponse[] = [];
+		const seenResponseKeys = new Set<string>();
 		const responseHandler = async (
 			response: Awaited<ReturnType<Page["waitForResponse"]>>,
 		) => {
@@ -165,6 +173,13 @@ export class PlaywrightSync {
 
 			try {
 				const body = await response.text();
+				const responseKey = `${response.url()}::${response.status()}::${body.length}`;
+
+				if (seenResponseKeys.has(responseKey)) {
+					return;
+				}
+
+				seenResponseKeys.add(responseKey);
 
 				capturedResponses.push({
 					url: response.url(),
@@ -190,8 +205,54 @@ export class PlaywrightSync {
 				waitUntil: "domcontentloaded",
 			});
 			await page.waitForTimeout(2500);
-			await page.mouse.wheel(0, 2200);
-			await page.waitForTimeout(2500);
+
+			let roundsWithoutNewResponses = 0;
+			const maxScrollRounds = Math.max(8, Math.ceil(maxTweets / 20) * 8);
+
+			for (let round = 0; round < maxScrollRounds; round += 1) {
+				const likesResponsesBeforeScroll = this.countLikesTimelineResponses(
+					capturedResponses,
+				);
+				const capturedTweetCountBeforeScroll = this.countCapturedTweetIds(
+					capturedResponses,
+				);
+				const visibleTweetCount = await this.countVisibleTweets(page);
+
+				if (
+					Math.max(visibleTweetCount, capturedTweetCountBeforeScroll) >= maxTweets
+				) {
+					break;
+				}
+
+				await page
+					.locator('article[data-testid="tweet"]')
+					.last()
+					.scrollIntoViewIfNeeded()
+					.catch(() => undefined);
+				await page.mouse.wheel(0, 2400);
+				await page.keyboard.press("End").catch(() => undefined);
+				await page.waitForTimeout(2500);
+
+				const likesResponsesAfterScroll = this.countLikesTimelineResponses(
+					capturedResponses,
+				);
+				const capturedTweetCountAfterScroll = this.countCapturedTweetIds(
+					capturedResponses,
+				);
+
+				if (
+					likesResponsesAfterScroll > likesResponsesBeforeScroll ||
+					capturedTweetCountAfterScroll > capturedTweetCountBeforeScroll
+				) {
+					roundsWithoutNewResponses = 0;
+				} else {
+					roundsWithoutNewResponses += 1;
+
+					if (roundsWithoutNewResponses >= 6) {
+						break;
+					}
+				}
+			}
 		} finally {
 			page.off("response", responseHandler);
 		}
@@ -262,7 +323,7 @@ export class PlaywrightSync {
 			await profileLink.waitFor({ state: "attached", timeout: 10000 });
 			const href = await profileLink.getAttribute("href");
 
-			if (href && href.startsWith("/")) {
+			if (href?.startsWith("/")) {
 				return new URL(
 					`${href.replace(/\/$/, "")}/likes`,
 					"https://x.com",
@@ -281,6 +342,53 @@ export class PlaywrightSync {
 			url.includes("/i/api/2/") ||
 			url.includes("/i/api/1.1/")
 		);
+	}
+
+	private countLikesTimelineResponses(capturedResponses: CapturedResponse[]) {
+		return capturedResponses.filter((response) => response.url.includes("/Likes?")).length;
+	}
+
+	private countCapturedTweetIds(capturedResponses: CapturedResponse[]) {
+		const tweetIds = new Set<string>();
+
+		for (const response of capturedResponses) {
+			if (!response.url.includes("/Likes?")) {
+				continue;
+			}
+
+			try {
+				const body = JSON.parse(response.body) as {
+					data?: {
+						user?: {
+							result?: {
+								timeline?: {
+									timeline?: {
+										instructions?: Array<{
+											entries?: Array<{ entryId?: string }>;
+										}>;
+									};
+								};
+							};
+						};
+					};
+				};
+				const entries = body.data?.user?.result?.timeline?.timeline?.instructions?.flatMap(
+					(instruction) => instruction.entries ?? [],
+				) ?? [];
+
+				for (const entry of entries) {
+					const entryId = entry.entryId ?? "";
+
+					if (entryId.startsWith("tweet-")) {
+						tweetIds.add(entryId.slice("tweet-".length));
+					}
+				}
+			} catch {
+				continue;
+			}
+		}
+
+		return tweetIds.size;
 	}
 
 	private writeCapturedResponses(capturedResponses: CapturedResponse[]) {

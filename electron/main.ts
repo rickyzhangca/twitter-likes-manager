@@ -7,6 +7,7 @@ import { SyncService } from "./sync-service"
 import {
   desktopChannels,
   type DesktopAppState,
+  type SyncStartOptions,
 } from "../src/types/desktop"
 
 const applicationName = "Twitter Likes Manager"
@@ -77,12 +78,12 @@ function registerIpcHandlers() {
 
     return syncService.getSyncState()
   })
-  ipcMain.handle(desktopChannels.startSync, () => {
+  ipcMain.handle(desktopChannels.startSync, (_event, options?: SyncStartOptions) => {
     if (!syncService) {
       throw new Error("Sync service is not initialized")
     }
 
-    return syncService.startSync()
+    return syncService.startSync(options)
   })
   ipcMain.handle(desktopChannels.ping, () => "pong")
   ipcMain.handle(desktopChannels.openDataDirectory, async () => {

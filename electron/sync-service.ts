@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 
-import type { SyncState } from "../src/types/desktop";
+import type { SyncStartOptions, SyncState } from "../src/types/desktop";
 import type { ArchiveStore } from "./archive-store";
 import { PlaywrightSync } from "./playwright-sync";
 
@@ -40,12 +40,14 @@ export class SyncService {
 		};
 	}
 
-	startSync(): SyncState {
+	startSync(options?: SyncStartOptions): SyncState {
 		const currentState = this.getSyncState();
 
 		if (currentState.activeRun) {
 			return currentState;
 		}
+
+		const normalizedOptions = normalizeSyncStartOptions(options);
 
 		const startedAt = new Date().toISOString();
 		const run = this.archiveStore.createSyncRun({
@@ -57,19 +59,22 @@ export class SyncService {
 			finishedAt: null,
 			scannedCount: 0,
 			importedCount: 0,
-			message: "Preparing the Playwright capture session.",
+			message: `Preparing the Playwright capture session for up to ${normalizedOptions.maxTweets} liked tweets.`,
 		});
 
 		this.activeRunId = run.id;
 		console.log(`[sync] started run ${run.id}`);
-		void this.runPlaywrightSync(run.id);
+		void this.runPlaywrightSync(run.id, normalizedOptions);
 
 		return this.getSyncState();
 	}
 
-	private async runPlaywrightSync(runId: string) {
+	private async runPlaywrightSync(
+		runId: string,
+		options: Required<SyncStartOptions>,
+	) {
 		try {
-			const captureResult = await this.playwrightSync.run((progress) => {
+			const captureResult = await this.playwrightSync.run(options, (progress) => {
 				console.log(
 					`[sync] ${runId} ${progress.phase}: ${progress.message} (${progress.scannedCount} scanned, ${progress.importedCount} imported)`,
 				);
@@ -99,6 +104,7 @@ export class SyncService {
 
 				const importResult = this.archiveStore.importLikesCapture(
 					captureResult.artifactPath,
+					options.maxTweets,
 				);
 
 				result = {
@@ -106,7 +112,7 @@ export class SyncService {
 					scannedCount: importResult.scannedCount,
 					importedCount: importResult.importedCount,
 					message: importResult.importedCount
-						? `Imported ${importResult.importedCount} liked tweets from ${importResult.likesResponseCount} captured Likes response${importResult.likesResponseCount === 1 ? "" : "s"}.`
+						? `Imported ${importResult.importedCount} liked tweets (limit ${options.maxTweets}) from ${importResult.likesResponseCount} captured Likes response${importResult.likesResponseCount === 1 ? "" : "s"}.`
 						: captureResult.message,
 				};
 			}
@@ -140,4 +146,14 @@ export class SyncService {
 			this.activeRunId = null;
 		}
 	}
+}
+
+function normalizeSyncStartOptions(options?: SyncStartOptions) {
+	const requestedLimit = options?.maxTweets;
+	const maxTweets =
+		typeof requestedLimit === "number" && Number.isFinite(requestedLimit)
+			? Math.min(1000, Math.max(1, Math.trunc(requestedLimit)))
+			: 200;
+
+	return { maxTweets };
 }

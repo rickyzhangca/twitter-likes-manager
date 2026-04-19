@@ -146,6 +146,7 @@ export type ParsedLikesCapture = {
 
 export function parseLikesCaptureArtifact(
   artifactPath: string,
+  maxTweets?: number,
 ): ParsedLikesCapture {
   const artifact = JSON.parse(
     readFileSync(artifactPath, "utf8"),
@@ -183,7 +184,10 @@ export function parseLikesCaptureArtifact(
   return {
     capturedAt: artifact.capturedAt,
     likesResponseCount: likesResponses.length,
-    tweets,
+    tweets:
+      typeof maxTweets === "number" && Number.isFinite(maxTweets)
+        ? tweets.slice(0, Math.max(0, Math.trunc(maxTweets)))
+        : tweets,
   }
 }
 
