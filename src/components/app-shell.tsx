@@ -44,14 +44,9 @@ function AppFrame() {
 				<SidebarInset>
 					<header className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b border-border bg-background/85 px-2 backdrop-blur [-webkit-app-region:drag] sm:px-6">
 						<SidebarTrigger className="shrink-0 [-webkit-app-region:no-drag]" />
-						<div className="min-w-0 flex-1">
-							<p className="truncate text-sm font-medium text-foreground">
-								{appState.appName}
-							</p>
-							<p className="truncate text-xs text-muted-foreground">
-								{bridgeStatus}
-							</p>
-						</div>
+						<p className="truncate text-sm font-medium text-foreground">
+							{appState.appName}
+						</p>
 						<div className="hidden text-right text-xs text-muted-foreground sm:block">
 							<p>{syncState.activeRun ? "Sync active" : "Sync idle"}</p>
 						</div>

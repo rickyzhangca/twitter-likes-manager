@@ -4,7 +4,7 @@ import {
 	HardDrivesIcon,
 	HouseIcon,
 	type Icon,
-	MonitorIcon,
+	TwitterLogoIcon,
 } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
 
@@ -44,7 +44,7 @@ type NavigationItem = {
 	helpText: string;
 	icon: Icon;
 	badge?: string;
-	to: "/overview" | "/services" | "/sync" | "/archive";
+	to: "/overview" | "/sync" | "/archive";
 };
 
 function formatCompactCount(value: number) {
@@ -71,13 +71,6 @@ export function AppSidebar({
 			to: "/overview",
 		},
 		{
-			label: "Services",
-			icon: MonitorIcon,
-			badge: String(appState.services.length),
-			helpText: "Main process and bridge readiness.",
-			to: "/services",
-		},
-		{
 			label: "Sync",
 			icon: ArrowsClockwiseIcon,
 			badge: syncState.activeRun ? "Live" : undefined,
@@ -96,29 +89,24 @@ export function AppSidebar({
 	const activeItem =
 		navigationItems.find((item) => item.to === currentPath) ??
 		navigationItems[0];
-	const runtimeSummary = `${appState.runtime} runtime`;
 	const activeRunLabel = syncState.activeRun
 		? `${syncState.activeRun.importedCount} imported`
 		: "Idle";
 
 	return (
 		<Sidebar variant="inset" collapsible="icon">
-			<SidebarHeader>
+			<SidebarHeader className="mt-5">
 				<SidebarMenu>
 					<SidebarMenuItem>
 						<SidebarMenuButton
 							render={<Link preload="intent" to="/overview" />}
 							size="lg"
-							isActive={currentPath === "/overview"}
 							tooltip="Overview"
 						>
-							<HouseIcon />
+							<TwitterLogoIcon weight="fill" />
 							<span className="grid flex-1 text-left leading-tight">
 								<span className="font-medium text-sidebar-foreground">
 									{appState.appName}
-								</span>
-								<span className="text-sidebar-foreground/70">
-									{runtimeSummary}
 								</span>
 							</span>
 						</SidebarMenuButton>
