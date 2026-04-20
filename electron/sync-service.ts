@@ -3,11 +3,13 @@ import path from "node:path";
 
 import type { SyncStartOptions, SyncState } from "../src/types/desktop";
 import type { ArchiveStore } from "./archive-store";
+import { MediaDownloader } from "./media-downloader";
 import { PlaywrightSync } from "./playwright-sync";
 
 export class SyncService {
 	private readonly archiveStore: ArchiveStore;
 	private readonly playwrightSync: PlaywrightSync;
+	private readonly mediaDownloader: MediaDownloader;
 	private activeRunId: string | null = null;
 
 	constructor(archiveStore: ArchiveStore) {
@@ -22,6 +24,7 @@ export class SyncService {
 				"sync-captures",
 			),
 		});
+		this.mediaDownloader = new MediaDownloader(this.archiveStore.mediaDirectory);
 	}
 
 	getSyncState(): SyncState {
@@ -106,13 +109,64 @@ export class SyncService {
 					captureResult.artifactPath,
 					options.maxTweets,
 				);
+				let mediaDownloadSummary = {
+					downloadedCount: 0,
+					failedCount: 0,
+				};
+
+				const pendingMedia = this.archiveStore.listMediaPendingDownload();
+
+				if (pendingMedia.length > 0) {
+					const downloadMessage = `Downloading ${pendingMedia.length} media file${pendingMedia.length === 1 ? "" : "s"} for offline archive viewing.`;
+
+					console.log(`[sync] ${runId} downloading-media: ${downloadMessage}`);
+					this.archiveStore.updateSyncRun(runId, {
+						status: "running",
+						phase: "downloading-media",
+						scannedCount: importResult.scannedCount,
+						importedCount: importResult.importedCount,
+						message: downloadMessage,
+					});
+
+					try {
+						const downloadResult = await this.mediaDownloader.downloadAll(
+							pendingMedia,
+						);
+
+						for (const result of downloadResult.results) {
+							if (result.localPath) {
+								this.archiveStore.updateMediaLocalPath(
+									result.id,
+									result.localPath,
+								);
+							}
+						}
+
+						mediaDownloadSummary = {
+							downloadedCount: downloadResult.downloadedCount,
+							failedCount: downloadResult.failedCount,
+						};
+					} catch (error) {
+						const mediaMessage =
+							error instanceof Error
+								? error.message
+								: "Unknown media download failure";
+						console.error(
+							`[sync] ${runId} media download failed: ${mediaMessage}`,
+						);
+					}
+				}
 
 				result = {
 					...captureResult,
 					scannedCount: importResult.scannedCount,
 					importedCount: importResult.importedCount,
 					message: importResult.importedCount
-						? `Imported ${importResult.importedCount} liked tweets (limit ${options.maxTweets}) from ${importResult.likesResponseCount} captured Likes response${importResult.likesResponseCount === 1 ? "" : "s"}.`
+						? formatCompletionMessage(
+								importResult,
+								mediaDownloadSummary,
+								options.maxTweets,
+							)
 						: captureResult.message,
 				};
 			}
@@ -146,6 +200,38 @@ export class SyncService {
 			this.activeRunId = null;
 		}
 	}
+}
+
+function formatCompletionMessage(
+	importResult: {
+		importedCount: number;
+		likesResponseCount: number;
+		mediaCount: number;
+	},
+	mediaDownloadSummary: {
+		downloadedCount: number;
+		failedCount: number;
+	},
+	maxTweets: number,
+) {
+	const baseMessage = `Imported ${importResult.importedCount} liked tweets (limit ${maxTweets}) from ${importResult.likesResponseCount} captured Likes response${importResult.likesResponseCount === 1 ? "" : "s"}.`;
+
+	if (importResult.mediaCount === 0) {
+		return `${baseMessage} No media attachments were found in this batch.`;
+	}
+
+	if (
+		mediaDownloadSummary.downloadedCount === 0 &&
+		mediaDownloadSummary.failedCount === 0
+	) {
+		return `${baseMessage} Imported ${importResult.mediaCount} media attachment${importResult.mediaCount === 1 ? "" : "s"}.`;
+	}
+
+	if (mediaDownloadSummary.failedCount === 0) {
+		return `${baseMessage} Downloaded ${mediaDownloadSummary.downloadedCount} media file${mediaDownloadSummary.downloadedCount === 1 ? "" : "s"} for offline viewing.`;
+	}
+
+	return `${baseMessage} Downloaded ${mediaDownloadSummary.downloadedCount} media file${mediaDownloadSummary.downloadedCount === 1 ? "" : "s"}; ${mediaDownloadSummary.failedCount} still need retry.`;
 }
 
 function normalizeSyncStartOptions(options?: SyncStartOptions) {

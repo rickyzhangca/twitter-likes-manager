@@ -4,8 +4,8 @@ import { type DesktopBridge, desktopChannels } from "../src/types/desktop";
 
 const desktopBridge: DesktopBridge = {
 	getAppState: () => ipcRenderer.invoke(desktopChannels.getAppState),
-	getArchiveSnapshot: () =>
-		ipcRenderer.invoke(desktopChannels.getArchiveSnapshot),
+	getArchiveSnapshot: (options) =>
+		ipcRenderer.invoke(desktopChannels.getArchiveSnapshot, options),
 	getSyncState: () => ipcRenderer.invoke(desktopChannels.getSyncState),
 	startSync: (options) =>
 		ipcRenderer.invoke(desktopChannels.startSync, options),

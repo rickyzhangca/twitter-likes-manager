@@ -2,6 +2,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, ipcMain, shell } from "electron";
 import {
+	type ArchiveQueryOptions,
 	type DesktopAppState,
 	desktopChannels,
 	type SyncStartOptions,
@@ -63,13 +64,16 @@ function getAppState(): DesktopAppState {
 
 function registerIpcHandlers() {
 	ipcMain.handle(desktopChannels.getAppState, () => getAppState());
-	ipcMain.handle(desktopChannels.getArchiveSnapshot, () => {
+	ipcMain.handle(
+		desktopChannels.getArchiveSnapshot,
+		(_event, options?: ArchiveQueryOptions) => {
 		if (!archiveStore) {
 			throw new Error("Archive store is not initialized");
 		}
 
-		return archiveStore.getArchiveSnapshot();
-	});
+			return archiveStore.getArchiveSnapshot(options);
+		},
+	);
 	ipcMain.handle(desktopChannels.getSyncState, () => {
 		if (!syncService) {
 			throw new Error("Sync service is not initialized");

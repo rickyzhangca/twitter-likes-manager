@@ -56,6 +56,11 @@ export type ArchiveSnapshot = {
   tweets: ArchiveTweetPreview[]
 }
 
+export type ArchiveQueryOptions = {
+  search?: string
+  limit?: number
+}
+
 export type SyncPhase =
   | "idle"
   | "launching-profile"
@@ -63,6 +68,7 @@ export type SyncPhase =
   | "awaiting-login"
   | "capturing-likes"
   | "normalizing-results"
+  | "downloading-media"
   | "completed"
   | "failed"
 
@@ -107,7 +113,9 @@ export type DesktopAppState = {
 
 export type DesktopBridge = {
   getAppState: () => Promise<DesktopAppState>
-  getArchiveSnapshot: () => Promise<ArchiveSnapshot>
+  getArchiveSnapshot: (
+    options?: ArchiveQueryOptions,
+  ) => Promise<ArchiveSnapshot>
   getSyncState: () => Promise<SyncState>
   startSync: (options: SyncStartOptions) => Promise<SyncState>
   ping: () => Promise<string>

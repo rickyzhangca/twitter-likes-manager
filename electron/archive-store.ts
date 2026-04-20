@@ -3,6 +3,8 @@ import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
 
 import type {
+  ArchiveMedia,
+  ArchiveQueryOptions,
   ArchiveSnapshot,
   ArchiveTweetPreview,
   DesktopAppState,
@@ -42,6 +44,12 @@ type SyncRunRow = {
   scanned_count: number
   imported_count: number
   message: string
+}
+
+type MediaDownloadRow = {
+  id: string
+  kind: ArchiveMedia["kind"]
+  remote_url: string
 }
 
 const seededAuthors = [
@@ -176,6 +184,7 @@ export class ArchiveStore {
       return {
         scannedCount: 0,
         importedCount: 0,
+        mediaCount: 0,
         likesResponseCount: parsedCapture.likesResponseCount,
       }
     }
@@ -270,14 +279,26 @@ export class ArchiveStore {
       throw error
     }
 
+    const mediaCount = parsedCapture.tweets.reduce(
+      (count, tweet) => count + tweet.media.length,
+      0,
+    )
+
     return {
       scannedCount: parsedCapture.tweets.length,
       importedCount: parsedCapture.tweets.length,
+      mediaCount,
       likesResponseCount: parsedCapture.likesResponseCount,
     }
   }
 
-  getArchiveSnapshot(): ArchiveSnapshot {
+  getArchiveSnapshot(options?: ArchiveQueryOptions): ArchiveSnapshot {
+    const limit = normalizeArchiveLimit(options?.limit)
+    const searchTerm = normalizeArchiveSearch(options?.search)
+    const escapedSearchTerm = searchTerm
+      ? `%${escapeSqlLikePattern(searchTerm)}%`
+      : null
+
     const stats = this.database
       .prepare(
         `
@@ -315,12 +336,26 @@ export class ArchiveStore {
           FROM tweets
           JOIN authors ON authors.id = tweets.author_id
           LEFT JOIN media ON media.tweet_id = tweets.id
+            ${
+              escapedSearchTerm
+                ? `WHERE (
+                    lower(tweets.text) LIKE ? ESCAPE '\\'
+                    OR lower(authors.username) LIKE ? ESCAPE '\\'
+                    OR lower(authors.display_name) LIKE ? ESCAPE '\\'
+                  )`
+                : ""
+            }
           GROUP BY tweets.id
           ORDER BY tweets.liked_at DESC
-          LIMIT 12
+            LIMIT ?
         `
       )
-      .all() as TweetRow[]
+        .all(
+          ...(escapedSearchTerm
+            ? [escapedSearchTerm, escapedSearchTerm, escapedSearchTerm]
+            : []),
+          limit,
+        ) as TweetRow[]
 
     const mediaStatement = this.database.prepare(
       `
@@ -372,6 +407,43 @@ export class ArchiveStore {
         })),
       })),
     }
+  }
+
+  listMediaPendingDownload(limit = 250): Array<{
+    id: string
+    kind: ArchiveMedia["kind"]
+    remoteUrl: string
+  }> {
+    const rows = this.database
+      .prepare(
+        `
+          SELECT media.id, media.kind, media.remote_url
+          FROM media
+          JOIN tweets ON tweets.id = media.tweet_id
+          WHERE media.local_path IS NULL
+          ORDER BY tweets.liked_at DESC, media.id ASC
+          LIMIT ?
+        `
+      )
+      .all(limit) as MediaDownloadRow[]
+
+    return rows.map((row) => ({
+      id: row.id,
+      kind: row.kind,
+      remoteUrl: row.remote_url,
+    }))
+  }
+
+  updateMediaLocalPath(id: string, localPath: string) {
+    this.database
+      .prepare(
+        `
+          UPDATE media
+          SET local_path = ?
+          WHERE id = ?
+        `
+      )
+      .run(localPath, id)
   }
 
   listSyncRuns(limit = 8): SyncRun[] {
@@ -649,4 +721,24 @@ export class ArchiveStore {
       message: row.message,
     }
   }
+}
+
+function normalizeArchiveLimit(limit: number | undefined) {
+  if (typeof limit !== "number" || !Number.isFinite(limit)) {
+    return 24
+  }
+
+  return Math.min(200, Math.max(1, Math.trunc(limit)))
+}
+
+function normalizeArchiveSearch(search: string | undefined) {
+  if (typeof search !== "string") {
+    return ""
+  }
+
+  return search.trim().toLowerCase()
+}
+
+function escapeSqlLikePattern(value: string) {
+  return value.replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll("_", "\\_")
 }

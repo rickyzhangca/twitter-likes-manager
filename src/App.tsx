@@ -1,7 +1,14 @@
-import { useEffect, useId, useState } from "react";
+import {
+	startTransition,
+	useDeferredValue,
+	useEffect,
+	useId,
+	useState,
+} from "react";
 
 import { type AppSectionId, AppSidebar } from "@/components/app-sidebar";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
 	SidebarInset,
 	SidebarProvider,
@@ -55,24 +62,6 @@ const browserPreviewState: DesktopAppState = {
 		},
 	],
 };
-
-const nextMilestones = [
-	"Replace the login-ready Playwright probe with real Likes timeline scrolling and collection.",
-	"Persist normalized tweets, authors, and local media paths from real captured likes.",
-	"Add media download retries and offline archive viewing for downloaded assets.",
-];
-
-const plannedScreens = [
-	{
-		name: "Sync control",
-		summary: "Start, resume, and inspect capture runs with progress updates.",
-	},
-	{
-		name: "Archive viewer",
-		summary:
-			"Browse tweets, inspect media, and search the local archive offline.",
-	},
-];
 
 const browserPreviewArchive: ArchiveSnapshot = {
 	databasePath: null,
@@ -201,7 +190,7 @@ function TweetMediaPreview({ media }: { media: ArchiveMedia[] }) {
 						)}
 						<div className="flex items-center justify-between border-t border-border px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
 							<span>{item.kind}</span>
-							<span>Open</span>
+							<span>{item.localPath ? "Saved offline" : "Open remote"}</span>
 						</div>
 					</a>
 				);
@@ -223,19 +212,23 @@ export function App() {
 		"Browser preview mode. Desktop services are idle until Electron boots.",
 	);
 	const [isOpeningDataDir, setIsOpeningDataDir] = useState(false);
-	const [isLoadingArchive, setIsLoadingArchive] = useState(false);
+	const [isLoadingArchive, setIsLoadingArchive] = useState(() =>
+		Boolean(window.twitterLikesDesktop),
+	);
 	const [isStartingSync, setIsStartingSync] = useState(false);
+	const [archiveSearchInput, setArchiveSearchInput] = useState("");
 	const [syncLimitInput, setSyncLimitInput] = useState(() =>
 		loadStoredSyncLimit(),
 	);
 	const [activeSection, setActiveSection] = useState<AppSectionId>("overview");
+	const deferredArchiveSearch = useDeferredValue(archiveSearchInput.trim());
 	const sectionAnchorPrefix = useId().replace(/:/g, "");
+	const archiveSearchInputId = `${sectionAnchorPrefix}-archive-search`;
 	const sectionAnchors: Record<AppSectionId, string> = {
 		overview: `${sectionAnchorPrefix}-overview`,
 		services: `${sectionAnchorPrefix}-services`,
 		sync: `${sectionAnchorPrefix}-sync`,
 		archive: `${sectionAnchorPrefix}-archive`,
-		roadmap: `${sectionAnchorPrefix}-roadmap`,
 	};
 
 	useEffect(() => {
@@ -246,11 +239,8 @@ export function App() {
 				return;
 			}
 
-			setIsLoadingArchive(true);
-
-			const [nextState, nextArchive, nextSyncState, pong] = await Promise.all([
+			const [nextState, nextSyncState, pong] = await Promise.all([
 				window.twitterLikesDesktop.getAppState(),
-				window.twitterLikesDesktop.getArchiveSnapshot(),
 				window.twitterLikesDesktop.getSyncState(),
 				window.twitterLikesDesktop.ping(),
 			]);
@@ -260,10 +250,8 @@ export function App() {
 			}
 
 			setAppState(nextState);
-			setArchive(nextArchive);
 			setSyncState(nextSyncState);
 			setBridgeStatus(`Desktop bridge online: ${pong}`);
-			setIsLoadingArchive(false);
 		}
 
 		void loadDesktopState().catch((error: unknown) => {
@@ -274,13 +262,54 @@ export function App() {
 			const message =
 				error instanceof Error ? error.message : "Unknown preload bridge error";
 			setBridgeStatus(`Desktop bridge failed: ${message}`);
-			setIsLoadingArchive(false);
 		});
 
 		return () => {
 			isDisposed = true;
 		};
 	}, []);
+
+	useEffect(() => {
+		const desktopBridge = window.twitterLikesDesktop;
+
+		if (!desktopBridge) {
+			return;
+		}
+
+		let isDisposed = false;
+
+		void desktopBridge
+			.getArchiveSnapshot({
+				search: deferredArchiveSearch,
+				limit: deferredArchiveSearch ? 60 : 24,
+			})
+			.then((nextArchive) => {
+				if (isDisposed) {
+					return;
+				}
+
+				startTransition(() => {
+					setArchive(nextArchive);
+				});
+				setIsLoadingArchive(false);
+			})
+			.catch((error: unknown) => {
+				if (isDisposed) {
+					return;
+				}
+
+				const message =
+					error instanceof Error
+						? error.message
+						: "Unknown archive loading error";
+				setBridgeStatus(`Archive load failed: ${message}`);
+				setIsLoadingArchive(false);
+			});
+
+		return () => {
+			isDisposed = true;
+		};
+	}, [deferredArchiveSearch]);
 
 	useEffect(() => {
 		const desktopBridge = window.twitterLikesDesktop;
@@ -296,11 +325,18 @@ export function App() {
 					setSyncState(nextSyncState);
 
 					if (!nextSyncState.activeRun) {
-						const nextArchive = await desktopBridge.getArchiveSnapshot();
+						setIsLoadingArchive(true);
+						const nextArchive = await desktopBridge.getArchiveSnapshot({
+							search: deferredArchiveSearch,
+							limit: deferredArchiveSearch ? 60 : 24,
+						});
 						setArchive(nextArchive);
+						setIsLoadingArchive(false);
 					}
 				})
 				.catch((error: unknown) => {
+					setIsLoadingArchive(false);
+
 					const message =
 						error instanceof Error
 							? error.message
@@ -312,7 +348,7 @@ export function App() {
 		return () => {
 			window.clearInterval(timer);
 		};
-	}, [syncState.activeRun]);
+	}, [deferredArchiveSearch, syncState.activeRun]);
 
 	async function handleOpenDataDirectory() {
 		if (!window.twitterLikesDesktop) {
@@ -425,7 +461,7 @@ export function App() {
 										variant="outline"
 										onClick={() =>
 											setBridgeStatus(
-												"Next implementation target: scroll the Likes timeline and normalize real rows from the Playwright session.",
+												"Next implementation target: add resumable sync checkpoints and manual retry controls for failed media downloads.",
 											)
 										}
 									>
@@ -695,18 +731,62 @@ export function App() {
 						className="scroll-mt-24 grid gap-6"
 					>
 						<div className="border border-border bg-card p-6">
-							<p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
-								Recent archive rows
+							<div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+								<div>
+									<p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+										Archive viewer
+									</p>
+									<p className="mt-2 text-sm leading-6 text-muted-foreground">
+										Search the local archive by tweet text, username, or display
+										name.
+									</p>
+								</div>
+								<label
+									htmlFor={archiveSearchInputId}
+									className="grid gap-2 text-sm text-foreground lg:w-80"
+								>
+									<span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+										Search local archive
+									</span>
+									<Input
+										id={archiveSearchInputId}
+										value={archiveSearchInput}
+										onChange={(event) => {
+											if (window.twitterLikesDesktop) {
+												setIsLoadingArchive(true);
+											}
+											setArchiveSearchInput(event.target.value);
+										}}
+										placeholder="@username, display name, or tweet text"
+										autoComplete="off"
+									/>
+								</label>
+							</div>
+
+							<p className="mt-4 text-xs uppercase tracking-[0.2em] text-muted-foreground">
+								{deferredArchiveSearch
+									? `Showing ${archive.tweets.length} match${archive.tweets.length === 1 ? "" : "es"} for "${deferredArchiveSearch}".`
+									: `Showing the most recent ${archive.tweets.length} archived tweet${archive.tweets.length === 1 ? "" : "s"}.`}
 							</p>
-							{isLoadingArchive ? (
+
+							{isLoadingArchive && archive.tweets.length > 0 ? (
+								<p className="mt-3 text-sm text-muted-foreground">
+									Refreshing archive results...
+								</p>
+							) : null}
+
+							{isLoadingArchive && archive.tweets.length === 0 ? (
 								<p className="mt-5 text-sm text-muted-foreground">
-									Loading archive...
+									{deferredArchiveSearch
+										? "Searching archive..."
+										: "Loading archive..."}
 								</p>
 							) : archive.tweets.length === 0 ? (
 								<div className="mt-5 border border-border bg-background/80 p-4">
 									<p className="text-sm text-muted-foreground">
-										No archive rows yet. The next slice will replace the seeded
-										store with captured likes from X.
+										{deferredArchiveSearch
+											? `No archived tweets matched "${deferredArchiveSearch}".`
+											: "No archive rows yet. Start a sync to capture Likes from X into the local archive."}
 									</p>
 								</div>
 							) : (
@@ -755,49 +835,6 @@ export function App() {
 									))}
 								</div>
 							)}
-						</div>
-					</section>
-
-					<section
-						id={sectionAnchors.roadmap}
-						className="scroll-mt-24 grid gap-6 xl:grid-cols-[0.95fr_1.05fr]"
-					>
-						<div className="border border-border bg-card p-6">
-							<p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
-								Planned screens
-							</p>
-							<div className="mt-5 grid gap-4">
-								{plannedScreens.map((screen) => (
-									<div
-										key={screen.name}
-										className="border border-border bg-background/80 p-4"
-									>
-										<h3 className="text-sm font-medium text-foreground">
-											{screen.name}
-										</h3>
-										<p className="mt-2 text-sm leading-6 text-muted-foreground">
-											{screen.summary}
-										</p>
-									</div>
-								))}
-							</div>
-						</div>
-
-						<div className="border border-border bg-card p-6">
-							<p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
-								Next milestones
-							</p>
-							<ol className="mt-5 grid gap-3 text-sm leading-6 text-foreground">
-								{nextMilestones.map((milestone, index) => (
-									<li
-										key={milestone}
-										className="border border-border bg-background/80 p-4"
-									>
-										<span className="text-muted-foreground">0{index + 1}</span>
-										<p className="mt-2">{milestone}</p>
-									</li>
-								))}
-							</ol>
 						</div>
 					</section>
 				</div>

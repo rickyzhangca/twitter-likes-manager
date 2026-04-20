@@ -4,7 +4,6 @@ import {
 	HardDrivesIcon,
 	HouseIcon,
 	type Icon,
-	ListBulletsIcon,
 	MonitorIcon,
 	TargetIcon,
 } from "@phosphor-icons/react";
@@ -35,7 +34,6 @@ export const appSectionIds = [
 	"services",
 	"sync",
 	"archive",
-	"roadmap",
 ] as const;
 
 export type AppSectionId = (typeof appSectionIds)[number];
@@ -244,18 +242,6 @@ export function AppSidebar({
 									? "Opening directory..."
 									: "Open data directory"}
 							</span>
-						</SidebarMenuButton>
-					</SidebarMenuItem>
-					<SidebarMenuItem>
-						<SidebarMenuButton
-							tooltip="Jump to sync controls"
-							onClick={() => {
-								onSelectSection("sync");
-								scrollToSection(sectionAnchors.sync);
-							}}
-						>
-							<ListBulletsIcon />
-							<span>Jump to sync controls</span>
 						</SidebarMenuButton>
 					</SidebarMenuItem>
 				</SidebarMenu>
