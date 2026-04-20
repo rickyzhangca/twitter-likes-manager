@@ -1,13 +1,16 @@
 /* eslint-disable react-refresh/only-export-components */
 
+import { CheckCircleIcon } from "@phosphor-icons/react";
 import { createFileRoute } from "@tanstack/react-router";
-
 import {
-	formatDate,
-	serviceTone,
-	syncTone,
-	useWorkspace,
-} from "@/hooks/use-workspace";
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@/components/ui/table";
+import { formatDate, useWorkspace } from "@/hooks/use-workspace";
 
 export const Route = createFileRoute("/log")({
 	component: LogPage,
@@ -17,93 +20,106 @@ function LogPage() {
 	const { appState, archive, syncState } = useWorkspace();
 
 	return (
-		<div className="grid gap-6">
-			<section className="border border-border bg-card p-4">
-				<div className="flex items-baseline justify-between gap-4">
-					<div>
-						<p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
-							Process split
-						</p>
-						<h2 className="mt-2 text-xl font-medium">Desktop services</h2>
-					</div>
-					<p className="text-xs text-muted-foreground">Secure preload bridge</p>
-				</div>
-
-				<div className="mt-5 grid gap-3">
-					{appState.services.map((service) => (
-						<article
-							key={service.id}
-							className={`border p-4 transition-colors ${serviceTone(service)}`}
-						>
-							<div className="flex items-center justify-between gap-3 text-xs uppercase tracking-[0.24em]">
-								<span>{service.label}</span>
-								<span>{service.status}</span>
-							</div>
-							<p className="mt-3 text-sm leading-6">{service.detail}</p>
-						</article>
-					))}
-				</div>
-
-				<div className="mt-4 border border-border bg-background/80 p-4 text-sm leading-6 text-muted-foreground">
-					<p className="text-foreground">Archive database</p>
-					<p className="mt-2 break-all">
-						{archive.databasePath ?? "No database yet"}
-					</p>
-				</div>
+		<div className="flex flex-col gap-4">
+			<section className="flex rounded-md border border-border">
+				{appState.services.map((service) => (
+					<article key={service.id} className="p-3">
+						<div className="flex items-center gap-1">
+							{service.status === "ready" && (
+								<CheckCircleIcon
+									weight="fill"
+									className="fill-green-600"
+									size={20}
+								/>
+							)}
+							<span className="text-sm">{service.label}</span>
+						</div>
+					</article>
+				))}
 			</section>
 
-			<section className="border border-border bg-background/80 p-4">
-				<div className="grid gap-2">
-					<div className="border border-sidebar-border bg-sidebar-accent/20 p-3 text-xs">
-						<p className="text-sidebar-foreground/70">Archive rows</p>
-						<p className="mt-1 font-medium text-sidebar-foreground">
-							{archive.stats.tweetCount} tweets
-						</p>
+			<section>
+				<div className="flex rounded-md border border-border">
+					<div className="py-3 px-4 text-sm border-r border-border">
+						<p className="opacity-50">Archive rows</p>
+						<p>{archive.stats.tweetCount} tweets</p>
 					</div>
-					<div className="border border-sidebar-border bg-sidebar-accent/20 p-3 text-xs">
-						<p className="text-sidebar-foreground/70">Sync state</p>
-						<p className="mt-1 font-medium text-sidebar-foreground">
+					<div className="py-3 px-4 text-sm border-r border-border">
+						<p className="opacity-50">Sync state</p>
+						<p>
 							{syncState.activeRun
 								? `${syncState.activeRun.importedCount} imported`
 								: "Idle"}
 						</p>
 					</div>
-					<div className="border border-sidebar-border bg-sidebar-accent/20 p-3 text-xs">
-						<p className="text-sidebar-foreground/70">Recent runs</p>
-						<p className="mt-1 font-medium text-sidebar-foreground">
-							{syncState.recentRuns.length} stored
-						</p>
+					<div className="py-3 px-4 text-sm border-r border-border">
+						<p className="opacity-50">Resumable runs</p>
+						<p>{syncState.resumableRun ? "1 available" : "None"}</p>
+					</div>
+					<div className="py-3 px-4 text-sm border-r border-border">
+						<p className="opacity-50">Recent runs</p>
+						<p>{syncState.recentRuns.length} stored</p>
 					</div>
 				</div>
 			</section>
 
-			<section className="border border-border bg-background/80 p-4">
-				<p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-					Recent runs
-				</p>
+			<section>
 				{syncState.recentRuns.length === 0 ? (
-					<p className="mt-4 text-sm leading-6 text-muted-foreground">
+					<p className="text-sm leading-6 text-muted-foreground">
 						No runs recorded yet. The first manual run will be stored in the
 						local archive database.
 					</p>
 				) : (
-					<div className="mt-4 grid gap-3">
-						{syncState.recentRuns.map((run) => (
-							<article key={run.id} className={`border p-3 ${syncTone(run)}`}>
-								<div className="flex items-center justify-between gap-3 text-xs uppercase tracking-[0.2em]">
-									<span>{run.phase}</span>
-									<span>{run.status}</span>
-								</div>
-								<p className="mt-2 text-sm leading-6 text-foreground">
-									{run.message}
-								</p>
-								<p className="mt-2 text-xs text-muted-foreground">
-									{formatDate(run.startedAt)} · {run.scannedCount} scanned ·{" "}
-									{run.importedCount} imported
-								</p>
-							</article>
-						))}
-					</div>
+					<Table>
+						<TableHeader>
+							<TableRow>
+								<TableHead>Started</TableHead>
+								<TableHead>Finished</TableHead>
+								<TableHead>Phase</TableHead>
+								<TableHead>Status</TableHead>
+								<TableHead className="text-right">Scanned</TableHead>
+								<TableHead className="text-right">Imported</TableHead>
+								<TableHead className="text-right">Failed media</TableHead>
+								<TableHead className="text-right">Retryable</TableHead>
+								<TableHead>Checkpoint</TableHead>
+								<TableHead>Message</TableHead>
+							</TableRow>
+						</TableHeader>
+						<TableBody>
+							{syncState.recentRuns.map((run) => (
+								<TableRow key={run.id}>
+									<TableCell className="whitespace-nowrap text-sm">
+										{formatDate(run.startedAt)}
+									</TableCell>
+									<TableCell className="whitespace-nowrap text-sm">
+										{run.finishedAt ? formatDate(run.finishedAt) : "—"}
+									</TableCell>
+									<TableCell className="text-sm">{run.phase}</TableCell>
+									<TableCell className="text-sm">{run.status}</TableCell>
+									<TableCell className="text-right text-sm">
+										{run.scannedCount}
+									</TableCell>
+									<TableCell className="text-right text-sm">
+										{run.importedCount}
+									</TableCell>
+									<TableCell className="text-right text-sm">
+										{run.failedMediaCount}
+									</TableCell>
+									<TableCell className="text-right text-sm">
+										{run.retryableMediaCount}
+									</TableCell>
+									<TableCell className="text-sm">
+										{run.hasResumableCheckpoint && run.resumableFromPhase
+											? run.resumableFromPhase
+											: "—"}
+									</TableCell>
+									<TableCell className="max-w-50 truncate text-sm">
+										{run.message}
+									</TableCell>
+								</TableRow>
+							))}
+						</TableBody>
+					</Table>
 				)}
 			</section>
 		</div>

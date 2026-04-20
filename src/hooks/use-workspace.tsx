@@ -12,10 +12,7 @@ import {
 
 import type {
 	ArchiveSnapshot,
-	ArchiveTweetPreview,
 	DesktopAppState,
-	DesktopService,
-	SyncRun,
 	SyncStartOptions,
 	SyncState,
 } from "@/types/desktop";
@@ -42,19 +39,16 @@ const browserPreviewState: DesktopAppState = {
 			id: "electron-shell",
 			label: "Electron shell",
 			status: "planned",
-			detail: "Start the app with `pnpm dev` to boot the desktop shell.",
 		},
 		{
 			id: "storage-layer",
 			label: "Local storage",
 			status: "planned",
-			detail: "SQLite and media storage will land in the next slice.",
 		},
 		{
 			id: "capture-worker",
 			label: "Capture worker",
 			status: "planned",
-			detail: "Playwright-based like sync has not been wired yet.",
 		},
 	],
 };
@@ -66,7 +60,7 @@ const browserPreviewArchive: ArchiveSnapshot = {
 		tweetCount: 0,
 		authorCount: 0,
 		mediaCount: 0,
-		latestLikedAt: null,
+		latestImportedAt: null,
 	},
 	tweets: [],
 };
@@ -74,6 +68,7 @@ const browserPreviewArchive: ArchiveSnapshot = {
 const browserPreviewSyncState: SyncState = {
 	canStart: true,
 	activeRun: null,
+	resumableRun: null,
 	recentRuns: [],
 };
 
@@ -84,9 +79,13 @@ type WorkspaceContextValue = {
 	bridgeStatus: string;
 	deferredArchiveSearch: string;
 	handleOpenDataDirectory: () => Promise<void>;
+	handleResumeSync: () => Promise<void>;
 	handleStartSync: () => Promise<void>;
+	handleRetryFailedMediaForRun: (runId: string) => Promise<void>;
 	isLoadingArchive: boolean;
 	isOpeningDataDir: boolean;
+	isResumingSync: boolean;
+	isRetryingFailedMedia: boolean;
 	isStartingSync: boolean;
 	setArchiveSearchInput: (value: string) => void;
 	setBridgeStatus: (value: string) => void;
@@ -126,42 +125,6 @@ export function formatDate(isoString: string | null) {
 	}).format(new Date(isoString));
 }
 
-export function stateTone(tweet: ArchiveTweetPreview) {
-	if (tweet.state === "available") {
-		return "border-primary/30 text-foreground";
-	}
-
-	if (tweet.state === "planned") {
-		return "border-border bg-background/80 text-muted-foreground";
-	}
-
-	return "border-destructive/30 bg-destructive/10 text-foreground";
-}
-
-export function syncTone(run: SyncRun) {
-	if (run.status === "completed") {
-		return "border-primary/30 text-foreground";
-	}
-
-	if (run.status === "failed") {
-		return "border-destructive/30 bg-destructive/10 text-foreground";
-	}
-
-	return "border-border bg-background/80 text-foreground";
-}
-
-export function serviceTone(service: DesktopService) {
-	if (service.status === "ready") {
-		return "border-primary/40 text-foreground";
-	}
-
-	if (service.status === "blocked") {
-		return "border-destructive/30 bg-destructive/10 text-foreground";
-	}
-
-	return "border-border bg-card text-muted-foreground";
-}
-
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
 	const [appState, setAppState] =
 		useState<DesktopAppState>(browserPreviewState);
@@ -178,6 +141,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 	const [isLoadingArchive, setIsLoadingArchive] = useState(() =>
 		Boolean(window.twitterLikesDesktop),
 	);
+	const [isResumingSync, setIsResumingSync] = useState(false);
+	const [isRetryingFailedMedia, setIsRetryingFailedMedia] = useState(false);
 	const [isStartingSync, setIsStartingSync] = useState(false);
 	const [archiveSearchInput, setArchiveSearchInputState] = useState("");
 	const [syncLimitInput, setSyncLimitInput] = useState(() =>
@@ -361,6 +326,53 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 		}
 	}
 
+	async function handleResumeSync() {
+		if (!window.twitterLikesDesktop) {
+			setBridgeStatus("Resume is only available in the Electron shell.");
+			return;
+		}
+
+		setIsResumingSync(true);
+
+		try {
+			const nextSyncState = await window.twitterLikesDesktop.resumeSync();
+			setSyncState(nextSyncState);
+			setBridgeStatus("Resumed the latest checkpointed sync run.");
+		} catch (error) {
+			const message =
+				error instanceof Error ? error.message : "Could not resume sync";
+			setBridgeStatus(`Resume sync failed: ${message}`);
+		} finally {
+			setIsResumingSync(false);
+		}
+	}
+
+	async function handleRetryFailedMediaForRun(runId: string) {
+		if (!window.twitterLikesDesktop) {
+			setBridgeStatus(
+				"Retry controls are only available in the Electron shell.",
+			);
+			return;
+		}
+
+		setIsRetryingFailedMedia(true);
+
+		try {
+			const nextSyncState =
+				await window.twitterLikesDesktop.retryFailedMediaForRun(runId);
+			setSyncState(nextSyncState);
+			setBridgeStatus("Retrying failed media downloads for the selected run.");
+		} catch (error) {
+			const message =
+				error instanceof Error
+					? error.message
+					: "Could not retry failed media downloads";
+			setBridgeStatus(`Retry failed media failed: ${message}`);
+		} finally {
+			setIsRetryingFailedMedia(false);
+		}
+	}
+
 	function setArchiveSearchInput(value: string) {
 		if (window.twitterLikesDesktop) {
 			setIsLoadingArchive(true);
@@ -378,9 +390,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 				bridgeStatus,
 				deferredArchiveSearch,
 				handleOpenDataDirectory,
+				handleResumeSync,
+				handleRetryFailedMediaForRun,
 				handleStartSync,
 				isLoadingArchive,
 				isOpeningDataDir,
+				isResumingSync,
+				isRetryingFailedMedia,
 				isStartingSync,
 				setArchiveSearchInput,
 				setBridgeStatus,

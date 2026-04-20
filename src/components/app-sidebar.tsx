@@ -37,7 +37,7 @@ type NavigationItem = {
 	label: string;
 	icon: Icon;
 	badge?: string;
-	to: "/overview" | "/sync" | "/log" | "/settings";
+	to: "/home" | "/sync" | "/log" | "/settings";
 };
 
 function formatCompactCount(value: number) {
@@ -59,7 +59,7 @@ export function AppSidebar({
 			label: "Home",
 			icon: HouseIcon,
 			badge: formatCompactCount(archive.stats.tweetCount),
-			to: "/overview",
+			to: "/home",
 		},
 		{
 			label: "Sync",
@@ -80,12 +80,12 @@ export function AppSidebar({
 	];
 
 	return (
-		<Sidebar variant="inset" collapsible="icon">
+		<Sidebar variant="inset">
 			<SidebarHeader className="mt-5 px-0">
 				<SidebarMenuButton
-					render={<Link preload="intent" to="/overview" />}
+					render={<Link preload="intent" to="/home" />}
 					size="lg"
-					tooltip="Overview"
+					tooltip="Home"
 				>
 					<TwitterLogoIcon weight="fill" />
 					<span className="font-medium text-sidebar-foreground">
@@ -119,13 +119,11 @@ export function AppSidebar({
 			</SidebarContent>
 
 			<SidebarFooter>
-				<div className="flex flex-col gap-1 text-xs opacity-50">
-					<p className="mt-1">Version {appState.appVersion}</p>
+				<div className="flex flex-col gap-1 text-sm opacity-50">
+					<p>Version {appState.appVersion}</p>
 					<p>Runtime: {appState.runtime}</p>
-					<p className="font-medium text-sidebar-foreground">
-						Bridge: {bridgeStatus}
-					</p>
-					<p>{appState.isPackaged ? "Packaged build" : "Development build"}</p>
+					<p>Bridge: {bridgeStatus}</p>
+					<p>{appState.isPackaged ? "Packaged build" : "Dev build"}</p>
 				</div>
 			</SidebarFooter>
 			<SidebarRail />

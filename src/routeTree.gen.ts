@@ -11,8 +11,9 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SyncRouteImport } from './routes/sync'
 import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as OverviewRouteImport } from './routes/overview'
 import { Route as LogRouteImport } from './routes/log'
+import { Route as HomeRouteImport } from './routes/home'
+import { Route as ArchiveRouteImport } from './routes/archive'
 import { Route as IndexRouteImport } from './routes/index'
 
 const SyncRoute = SyncRouteImport.update({
@@ -25,14 +26,19 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
-const OverviewRoute = OverviewRouteImport.update({
-  id: '/overview',
-  path: '/overview',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const LogRoute = LogRouteImport.update({
   id: '/log',
   path: '/log',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HomeRoute = HomeRouteImport.update({
+  id: '/home',
+  path: '/home',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ArchiveRoute = ArchiveRouteImport.update({
+  id: '/archive',
+  path: '/archive',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -43,38 +49,42 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/archive': typeof ArchiveRoute
+  '/home': typeof HomeRoute
   '/log': typeof LogRoute
-  '/overview': typeof OverviewRoute
   '/settings': typeof SettingsRoute
   '/sync': typeof SyncRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/archive': typeof ArchiveRoute
+  '/home': typeof HomeRoute
   '/log': typeof LogRoute
-  '/overview': typeof OverviewRoute
   '/settings': typeof SettingsRoute
   '/sync': typeof SyncRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/archive': typeof ArchiveRoute
+  '/home': typeof HomeRoute
   '/log': typeof LogRoute
-  '/overview': typeof OverviewRoute
   '/settings': typeof SettingsRoute
   '/sync': typeof SyncRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/log' | '/overview' | '/settings' | '/sync'
+  fullPaths: '/' | '/archive' | '/home' | '/log' | '/settings' | '/sync'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/log' | '/overview' | '/settings' | '/sync'
-  id: '__root__' | '/' | '/log' | '/overview' | '/settings' | '/sync'
+  to: '/' | '/archive' | '/home' | '/log' | '/settings' | '/sync'
+  id: '__root__' | '/' | '/archive' | '/home' | '/log' | '/settings' | '/sync'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ArchiveRoute: typeof ArchiveRoute
+  HomeRoute: typeof HomeRoute
   LogRoute: typeof LogRoute
-  OverviewRoute: typeof OverviewRoute
   SettingsRoute: typeof SettingsRoute
   SyncRoute: typeof SyncRoute
 }
@@ -95,18 +105,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/overview': {
-      id: '/overview'
-      path: '/overview'
-      fullPath: '/overview'
-      preLoaderRoute: typeof OverviewRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/log': {
       id: '/log'
       path: '/log'
       fullPath: '/log'
       preLoaderRoute: typeof LogRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/home': {
+      id: '/home'
+      path: '/home'
+      fullPath: '/home'
+      preLoaderRoute: typeof HomeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/archive': {
+      id: '/archive'
+      path: '/archive'
+      fullPath: '/archive'
+      preLoaderRoute: typeof ArchiveRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -121,8 +138,9 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ArchiveRoute: ArchiveRoute,
+  HomeRoute: HomeRoute,
   LogRoute: LogRoute,
-  OverviewRoute: OverviewRoute,
   SettingsRoute: SettingsRoute,
   SyncRoute: SyncRoute,
 }

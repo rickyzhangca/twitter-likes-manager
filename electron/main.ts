@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { app, BrowserWindow, ipcMain, protocol, shell } from "electron";
+import { app, BrowserWindow, clipboard, ipcMain, nativeImage, protocol, shell } from "electron";
 import {
 	type ArchiveQueryOptions,
 	type DesktopAppState,
@@ -42,21 +42,16 @@ function getAppState(): DesktopAppState {
 				id: "electron-shell",
 				label: "Electron shell",
 				status: "ready",
-				detail:
-					"Desktop window, preload bridge, and runtime metadata are active.",
 			},
 			{
 				id: "storage-layer",
 				label: "Local storage",
 				status: "blocked",
-				detail: "Archive store has not been initialized yet.",
 			},
 			{
 				id: "capture-worker",
 				label: "Capture worker",
 				status: "planned",
-				detail:
-					"A Playwright worker will own signed-in capture of the Likes timeline.",
 			},
 		],
 	};
@@ -106,6 +101,20 @@ function registerIpcHandlers() {
 			return syncService.startSync(options);
 		},
 	);
+	ipcMain.handle(desktopChannels.resumeSync, () => {
+		if (!syncService) {
+			throw new Error("Sync service is not initialized");
+		}
+
+		return syncService.resumeSync();
+	});
+	ipcMain.handle(desktopChannels.retryFailedMediaForRun, (_event, runId: string) => {
+		if (!syncService) {
+			throw new Error("Sync service is not initialized");
+		}
+
+		return syncService.retryFailedMediaForRun(runId);
+	});
 	ipcMain.handle(desktopChannels.ping, () => "pong");
 	ipcMain.handle(desktopChannels.openDataDirectory, async () => {
 		const result = await shell.openPath(app.getPath("userData"));
@@ -113,6 +122,13 @@ function registerIpcHandlers() {
 		if (result) {
 			throw new Error(result);
 		}
+	});
+	ipcMain.handle(desktopChannels.copyImageToClipboard, async (_event, localPath: string) => {
+		const image = nativeImage.createFromBuffer(await readFile(localPath));
+		clipboard.writeImage(image);
+	});
+	ipcMain.handle(desktopChannels.showItemInFolder, (_event, localPath: string) => {
+		shell.showItemInFolder(localPath);
 	});
 }
 

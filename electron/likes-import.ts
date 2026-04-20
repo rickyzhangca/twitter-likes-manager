@@ -94,6 +94,8 @@ type RawTweetLegacy = {
   full_text?: string
   favorite_count?: number
   reply_count?: number
+  is_quote_status?: boolean
+  quoted_status_id_str?: string
   entities?: {
     media?: RawMediaItem[]
   }
@@ -112,6 +114,7 @@ type RawTweet = {
   }
   legacy?: RawTweetLegacy
   note_tweet?: RawNoteTweet
+  quoted_status_result?: { result?: unknown }
   tweet?: unknown
   result?: unknown
 }
@@ -130,18 +133,21 @@ export type ParsedLikeTweet = {
   avatarUrl: string | null
   url: string
   text: string
-  likedAt: string
+  importedAt: string
   createdAt: string
   state: ArchiveTweetPreview["state"]
   likeCount: number
   replyCount: number
   media: ParsedMedia[]
+  quotedTweet: ParsedLikeTweet | null
 }
 
 export type ParsedLikesCapture = {
   capturedAt: string
   likesResponseCount: number
   tweets: ParsedLikeTweet[]
+  sources: Map<string, "like" | "quoted">
+  quotedTweetIds: Map<string, string>
 }
 
 export function parseLikesCaptureArtifact(
@@ -156,6 +162,8 @@ export function parseLikesCaptureArtifact(
   )
   const tweets: ParsedLikeTweet[] = []
   const seenTweetIds = new Set<string>()
+  const sources = new Map<string, "like" | "quoted">()
+  const quotedTweetIds = new Map<string, string>()
 
   for (const response of likesResponses) {
     let body: RawLikesBody
@@ -177,17 +185,34 @@ export function parseLikesCaptureArtifact(
       }
 
       seenTweetIds.add(tweet.id)
+      sources.set(tweet.id, "like")
       tweets.push(tweet)
+
+      if (tweet.quotedTweet && !seenTweetIds.has(tweet.quotedTweet.id)) {
+        seenTweetIds.add(tweet.quotedTweet.id)
+        sources.set(tweet.quotedTweet.id, "quoted")
+        quotedTweetIds.set(tweet.id, tweet.quotedTweet.id)
+        tweets.push(tweet.quotedTweet)
+      }
     }
   }
+
+  const limitedTweets =
+    typeof maxTweets === "number" && Number.isFinite(maxTweets)
+      ? tweets.filter((t) => sources.get(t.id) === "like").slice(0, Math.max(0, Math.trunc(maxTweets)))
+      : tweets.filter((t) => sources.get(t.id) === "like")
+
+  const allTweets = [
+    ...limitedTweets,
+    ...tweets.filter((t) => sources.get(t.id) === "quoted" && limitedTweets.some((lt) => quotedTweetIds.get(lt.id) === t.id)),
+  ]
 
   return {
     capturedAt: artifact.capturedAt,
     likesResponseCount: likesResponses.length,
-    tweets:
-      typeof maxTweets === "number" && Number.isFinite(maxTweets)
-        ? tweets.slice(0, Math.max(0, Math.trunc(maxTweets)))
-        : tweets,
+    tweets: allTweets,
+    sources,
+    quotedTweetIds,
   }
 }
 
@@ -209,9 +234,39 @@ function parseTimelineEntry(
 
   const username = user.core.screen_name
   const text = getTweetText(tweet)
-  const likedAt = decodeSnowflakeTimestamp(entry.sortIndex) ?? capturedAt
-  const createdAt = parseTwitterDate(tweet.legacy.created_at) ?? likedAt
+  const importedAt = decodeSnowflakeTimestamp(entry.sortIndex) ?? capturedAt
+  const createdAt = parseTwitterDate(tweet.legacy.created_at) ?? importedAt
   const media = extractMedia(tweet.legacy)
+
+  let quotedTweet: ParsedLikeTweet | null = null
+
+  if (tweet.legacy.is_quote_status && tweet.quoted_status_result?.result) {
+    const quotedRaw = unwrapTweetResult(tweet.quoted_status_result.result)
+
+    if (quotedRaw?.rest_id && quotedRaw.legacy) {
+      const quotedUser = unwrapUserResult(quotedRaw.core?.user_results?.result)
+
+      if (quotedUser?.rest_id && quotedUser.core?.screen_name) {
+        const quotedUsername = quotedUser.core.screen_name
+        quotedTweet = {
+          id: quotedRaw.rest_id,
+          authorId: quotedUser.rest_id,
+          username: quotedUsername,
+          displayName: quotedUser.core.name ?? quotedUsername,
+          avatarUrl: quotedUser.avatar?.image_url ?? null,
+          url: `https://x.com/${quotedUsername}/status/${quotedRaw.rest_id}`,
+          text: stripTrailingTcoUrl(getTweetText(quotedRaw)),
+          importedAt,
+          createdAt: parseTwitterDate(quotedRaw.legacy.created_at) ?? importedAt,
+          state: quotedUser.privacy?.protected ? "protected" : "available",
+          likeCount: toNumber(quotedRaw.legacy.favorite_count),
+          replyCount: toNumber(quotedRaw.legacy.reply_count),
+          media: extractMedia(quotedRaw.legacy),
+          quotedTweet: null,
+        }
+      }
+    }
+  }
 
   return {
     id: tweet.rest_id,
@@ -220,13 +275,14 @@ function parseTimelineEntry(
     displayName: user.core.name ?? username,
     avatarUrl: user.avatar?.image_url ?? null,
     url: `https://x.com/${username}/status/${tweet.rest_id}`,
-    text,
-    likedAt,
+    text: quotedTweet ? stripTrailingTcoUrl(text) : text,
+    importedAt,
     createdAt,
     state: user.privacy?.protected ? "protected" : "available",
     likeCount: toNumber(tweet.legacy.favorite_count),
     replyCount: toNumber(tweet.legacy.reply_count),
     media,
+    quotedTweet,
   }
 }
 
@@ -284,6 +340,10 @@ function getTweetText(tweet: RawTweet) {
   }
 
   return typeof tweet.legacy?.full_text === "string" ? tweet.legacy.full_text : ""
+}
+
+function stripTrailingTcoUrl(text: string) {
+  return text.replace(/\s*https:\/\/t\.co\/\S+\s*$/, "").trim()
 }
 
 function extractMedia(legacy: RawTweetLegacy | undefined): ParsedMedia[] {

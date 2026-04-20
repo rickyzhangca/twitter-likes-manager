@@ -27,3 +27,4 @@ dist-ssr
 # Agents
 .agents
 skills-lock.json
+.opencode

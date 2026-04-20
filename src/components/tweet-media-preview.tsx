@@ -1,5 +1,16 @@
-import { createDesktopMediaUrl } from "@/types/desktop";
+import MuxVideo from "@mux/mux-video-react";
+import Zoom from "react-medium-image-zoom";
 import type { ArchiveMedia } from "@/types/desktop";
+import { createDesktopMediaUrl } from "@/types/desktop";
+import "react-medium-image-zoom/dist/styles.css";
+import { cn } from "@/lib/utils";
+import {
+	ContextMenu,
+	ContextMenuContent,
+	ContextMenuGroup,
+	ContextMenuItem,
+	ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 
 function resolveMediaSource(media: ArchiveMedia) {
 	if (media.localPath && window.twitterLikesDesktop) {
@@ -9,43 +20,113 @@ function resolveMediaSource(media: ArchiveMedia) {
 	return media.remoteUrl;
 }
 
+async function handleCopyImage(media: ArchiveMedia) {
+	if (!media.localPath || !window.twitterLikesDesktop) return;
+	await window.twitterLikesDesktop.copyImageToClipboard(media.localPath);
+}
+
+async function handleRevealInFolder(media: ArchiveMedia) {
+	if (!media.localPath || !window.twitterLikesDesktop) return;
+	await window.twitterLikesDesktop.showItemInFolder(media.localPath);
+}
+
 export function TweetMediaPreview({ media }: { media: ArchiveMedia[] }) {
 	if (media.length === 0) {
 		return null;
 	}
 
+	const multi = media.length > 1;
+
 	return (
-		<div className="mt-4 grid gap-3 sm:grid-cols-2">
+		<div className={multi ? "grid grid-cols-2 gap-2" : "flex flex-col gap-3"}>
 			{media.map((item) => {
 				const source = resolveMediaSource(item);
 
-				return (
-					<a
-						key={item.id}
-						href={source}
-						target="_blank"
-						rel="noreferrer"
-						className="group block overflow-hidden border border-border bg-background/80"
-					>
-						{item.kind === "photo" ? (
-							<img
+				if (item.kind === "video") {
+					return (
+						<div
+							key={item.id}
+							className={cn(
+								"group overflow-hidden border rounded-sm border-border bg-black",
+								multi ? "w-full" : "w-fit max-w-135",
+							)}
+						>
+							<MuxVideo
 								src={source}
-								alt="Tweet media"
-								loading="lazy"
-								className="aspect-4/3 h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
+								controls
+								playsInline
+								className={cn(
+									"h-auto w-full",
+									multi ? "max-h-80" : "max-h-135 w-auto max-w-full",
+								)}
 							/>
-						) : (
-							<div className="aspect-4/3 flex h-full w-full items-center justify-center bg-black/90 p-4 text-center text-sm text-white">
-								<span>
-									{item.kind === "gif" ? "Animated GIF" : "Video"} preview
-								</span>
-							</div>
-						)}
-						<div className="flex items-center justify-between border-t border-border px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-							<span>{item.kind}</span>
-							<span>{item.localPath ? "Saved offline" : "Open remote"}</span>
 						</div>
-					</a>
+					);
+				}
+
+				if (item.kind === "gif") {
+					return (
+						<div
+							key={item.id}
+							className={cn(
+								"group overflow-hidden border rounded-sm border-border bg-black/30",
+								multi ? "w-full" : "w-fit max-w-135",
+							)}
+						>
+							<MuxVideo
+								src={source}
+								autoPlay
+								muted
+								loop
+								playsInline
+								className={cn(
+									"h-auto w-full",
+									multi ? "max-h-80" : "max-h-135 w-auto max-w-full",
+								)}
+							/>
+						</div>
+					);
+				}
+
+				return (
+					<ContextMenu key={item.id}>
+						<ContextMenuTrigger>
+							<div
+								className={cn(
+									"group overflow-hidden rounded-sm border border-border bg-black/30",
+									multi ? "w-full" : "w-fit max-w-135",
+								)}
+							>
+								<Zoom>
+									<img
+										src={source}
+										alt="Tweet media"
+										loading="lazy"
+										className={cn(
+											"h-auto w-full object-contain",
+											multi ? "max-h-80" : "max-h-135 w-auto max-w-full",
+										)}
+									/>
+								</Zoom>
+							</div>
+						</ContextMenuTrigger>
+						<ContextMenuContent>
+							<ContextMenuGroup>
+								<ContextMenuItem
+									disabled={!item.localPath}
+									onSelect={() => handleCopyImage(item)}
+								>
+									Copy Image
+								</ContextMenuItem>
+								<ContextMenuItem
+									disabled={!item.localPath}
+									onSelect={() => handleRevealInFolder(item)}
+								>
+									Reveal in Finder
+								</ContextMenuItem>
+							</ContextMenuGroup>
+						</ContextMenuContent>
+					</ContextMenu>
 				);
 			})}
 		</div>

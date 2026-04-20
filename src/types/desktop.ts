@@ -3,8 +3,12 @@ export const desktopChannels = {
   getArchiveSnapshot: "desktop:get-archive-snapshot",
   getSyncState: "desktop:get-sync-state",
   startSync: "desktop:start-sync",
+  resumeSync: "desktop:resume-sync",
+  retryFailedMediaForRun: "desktop:retry-failed-media-for-run",
   ping: "desktop:ping",
   openDataDirectory: "desktop:open-data-directory",
+  copyImageToClipboard: "desktop:copy-image-to-clipboard",
+  showItemInFolder: "desktop:show-item-in-folder",
 } as const
 
 export const desktopMediaScheme = "tlm-media"
@@ -21,7 +25,6 @@ export type DesktopService = {
   id: "electron-shell" | "storage-layer" | "capture-worker"
   label: string
   status: DesktopServiceStatus
-  detail: string
 }
 
 export type ArchiveMedia = {
@@ -35,7 +38,7 @@ export type ArchiveTweetPreview = {
   id: string
   url: string
   text: string
-  likedAt: string
+  importedAt: string
   createdAt: string
   state: "available" | "planned" | "deleted" | "protected"
   metrics: {
@@ -50,6 +53,7 @@ export type ArchiveTweetPreview = {
     avatarUrl: string | null
   }
   media: ArchiveMedia[]
+  quotedTweet: ArchiveTweetPreview | null
 }
 
 export type ArchiveSnapshot = {
@@ -59,7 +63,7 @@ export type ArchiveSnapshot = {
     tweetCount: number
     authorCount: number
     mediaCount: number
-    latestLikedAt: string | null
+    latestImportedAt: string | null
   }
   tweets: ArchiveTweetPreview[]
 }
@@ -82,6 +86,13 @@ export type SyncPhase =
 
 export type SyncRunStatus = "idle" | "running" | "completed" | "failed"
 
+export type SyncDownloadProgress = {
+  completedCount: number
+  failedCount: number
+  pendingCount: number
+  totalCount: number
+}
+
 export type SyncRun = {
   id: string
   status: SyncRunStatus
@@ -92,6 +103,11 @@ export type SyncRun = {
   scannedCount: number
   importedCount: number
   message: string
+  hasResumableCheckpoint: boolean
+  resumableFromPhase: SyncPhase | null
+  failedMediaCount: number
+  retryableMediaCount: number
+  downloadProgress: SyncDownloadProgress | null
 }
 
 export type SyncStartOptions = {
@@ -101,6 +117,7 @@ export type SyncStartOptions = {
 export type SyncState = {
   canStart: boolean
   activeRun: SyncRun | null
+  resumableRun: SyncRun | null
   recentRuns: SyncRun[]
 }
 
@@ -126,6 +143,10 @@ export type DesktopBridge = {
   ) => Promise<ArchiveSnapshot>
   getSyncState: () => Promise<SyncState>
   startSync: (options: SyncStartOptions) => Promise<SyncState>
+  resumeSync: () => Promise<SyncState>
+  retryFailedMediaForRun: (runId: string) => Promise<SyncState>
   ping: () => Promise<string>
   openDataDirectory: () => Promise<void>
+  copyImageToClipboard: (localPath: string) => Promise<void>
+  showItemInFolder: (localPath: string) => Promise<void>
 }

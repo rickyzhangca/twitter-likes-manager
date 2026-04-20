@@ -22,6 +22,22 @@ type MediaDownloadSummary = {
   results: DownloadedMedia[]
 }
 
+type MediaDownloadHooks = {
+  onAttemptStart?: (
+    item: MediaDownloadItem,
+    attemptCount: number,
+  ) => Promise<void> | void
+  onAttemptFailure?: (
+    item: MediaDownloadItem,
+    attemptCount: number,
+    errorMessage: string,
+  ) => Promise<void> | void
+  onDownloadSuccess?: (
+    item: MediaDownloadItem,
+    download: DownloadedMedia,
+  ) => Promise<void> | void
+}
+
 const retryDelaysMs = [0, 400, 1200]
 
 export class MediaDownloader {
@@ -31,7 +47,10 @@ export class MediaDownloader {
     this.mediaDirectory = mediaDirectory
   }
 
-  async downloadAll(items: MediaDownloadItem[]): Promise<MediaDownloadSummary> {
+  async downloadAll(
+    items: MediaDownloadItem[],
+    hooks?: MediaDownloadHooks,
+  ): Promise<MediaDownloadSummary> {
     if (items.length === 0) {
       return {
         downloadedCount: 0,
@@ -45,7 +64,7 @@ export class MediaDownloader {
     const results: DownloadedMedia[] = []
 
     for (const item of items) {
-      results.push(await this.downloadWithRetry(item))
+      results.push(await this.downloadWithRetry(item, hooks))
     }
 
     return {
@@ -57,11 +76,14 @@ export class MediaDownloader {
 
   private async downloadWithRetry(
     item: MediaDownloadItem,
+    hooks?: MediaDownloadHooks,
   ): Promise<DownloadedMedia> {
     let attemptCount = 0
 
     for (const retryDelayMs of retryDelaysMs) {
       attemptCount += 1
+
+      await hooks?.onAttemptStart?.(item, attemptCount)
 
       if (retryDelayMs > 0) {
         await delay(retryDelayMs)
@@ -88,16 +110,21 @@ export class MediaDownloader {
 
         await writeFile(filePath, content)
 
-        return {
+        const download = {
           id: item.id,
           localPath: filePath,
           attemptCount,
         }
+
+        await hooks?.onDownloadSuccess?.(item, download)
+
+        return download
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
         console.warn(
           `[sync] media download failed for ${item.remoteUrl} on attempt ${attemptCount}: ${message}`,
         )
+        await hooks?.onAttemptFailure?.(item, attemptCount, message)
       }
     }
 

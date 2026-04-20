@@ -9,9 +9,16 @@ const desktopBridge: DesktopBridge = {
 	getSyncState: () => ipcRenderer.invoke(desktopChannels.getSyncState),
 	startSync: (options) =>
 		ipcRenderer.invoke(desktopChannels.startSync, options),
+	resumeSync: () => ipcRenderer.invoke(desktopChannels.resumeSync),
+	retryFailedMediaForRun: (runId) =>
+		ipcRenderer.invoke(desktopChannels.retryFailedMediaForRun, runId),
 	ping: () => ipcRenderer.invoke(desktopChannels.ping),
 	openDataDirectory: () =>
 		ipcRenderer.invoke(desktopChannels.openDataDirectory),
+	copyImageToClipboard: (localPath) =>
+		ipcRenderer.invoke(desktopChannels.copyImageToClipboard, localPath),
+	showItemInFolder: (localPath) =>
+		ipcRenderer.invoke(desktopChannels.showItemInFolder, localPath),
 };
 
 contextBridge.exposeInMainWorld("twitterLikesDesktop", desktopBridge);
