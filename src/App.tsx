@@ -1,6 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 
+import { type AppSectionId, AppSidebar } from "@/components/app-sidebar";
 import { Button } from "@/components/ui/button";
+import {
+	SidebarInset,
+	SidebarProvider,
+	SidebarTrigger,
+} from "@/components/ui/sidebar";
 import type {
 	ArchiveMedia,
 	ArchiveSnapshot,
@@ -226,6 +232,15 @@ export function App() {
 	const [syncLimitInput, setSyncLimitInput] = useState(() =>
 		loadStoredSyncLimit(),
 	);
+	const [activeSection, setActiveSection] = useState<AppSectionId>("overview");
+	const sectionAnchorPrefix = useId().replace(/:/g, "");
+	const sectionAnchors: Record<AppSectionId, string> = {
+		overview: `${sectionAnchorPrefix}-overview`,
+		services: `${sectionAnchorPrefix}-services`,
+		sync: `${sectionAnchorPrefix}-sync`,
+		archive: `${sectionAnchorPrefix}-archive`,
+		roadmap: `${sectionAnchorPrefix}-roadmap`,
+	};
 
 	useEffect(() => {
 		let isDisposed = false;
@@ -360,306 +375,358 @@ export function App() {
 		}
 	}
 
+	function handleSelectSection(section: AppSectionId) {
+		setActiveSection(section);
+	}
+
 	return (
-		<div className="min-h-svh bg-[radial-gradient(circle_at_top_left,color-mix(in_oklab,var(--color-primary)_14%,transparent),transparent_32%),linear-gradient(180deg,color-mix(in_oklab,var(--color-background)_88%,black_12%),var(--color-background))]">
-			<div className="mx-auto flex min-h-svh w-full max-w-7xl flex-col gap-8 px-6 py-8 lg:px-10 lg:py-10">
-				<header className="grid gap-8 border border-border bg-card/80 p-6 backdrop-blur lg:grid-cols-[1.6fr_0.9fr] lg:p-8">
-					<div className="space-y-5">
-						<div className="space-y-3">
-							<p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
-								MVP foundation
-							</p>
-							<h1 className="max-w-3xl text-3xl leading-tight font-medium text-balance sm:text-4xl lg:text-5xl">
-								Local-first archive for your liked tweets, built as a desktop
-								app.
-							</h1>
-							<p className="max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">
-								The app now owns a local archive and a desktop-managed sync
-								loop. Starting a sync opens a persistent Playwright profile,
-								waits for an authenticated X session when needed, and hands off
-								to the real capture boundary that the next slice will deepen.
-							</p>
-						</div>
-
-						<div className="flex flex-wrap gap-3">
-							<Button
-								onClick={handleOpenDataDirectory}
-								disabled={isOpeningDataDir}
-							>
-								{isOpeningDataDir
-									? "Opening data directory..."
-									: "Open data directory"}
-							</Button>
-							<Button
-								variant="outline"
-								onClick={() =>
-									setBridgeStatus(
-										"Next implementation target: scroll the Likes timeline and normalize real rows from the Playwright session.",
-									)
-								}
-							>
-								Next implementation target
-							</Button>
-						</div>
+		<SidebarProvider defaultOpen>
+			<AppSidebar
+				activeSection={activeSection}
+				appState={appState}
+				archive={archive}
+				bridgeStatus={bridgeStatus}
+				isOpeningDataDir={isOpeningDataDir}
+				onOpenDataDirectory={handleOpenDataDirectory}
+				onSelectSection={handleSelectSection}
+				sectionAnchors={sectionAnchors}
+				syncState={syncState}
+			/>
+			<SidebarInset className="min-h-svh bg-[radial-gradient(circle_at_top_left,color-mix(in_oklab,var(--color-primary)_14%,transparent),transparent_32%),linear-gradient(180deg,color-mix(in_oklab,var(--color-background)_88%,black_12%),var(--color-background))]">
+				<header className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b border-border bg-background/85 px-4 backdrop-blur [-webkit-app-region:drag] sm:px-6 lg:px-8">
+					<SidebarTrigger className="shrink-0 [-webkit-app-region:no-drag]" />
+					<div className="min-w-0 flex-1">
+						<p className="truncate text-sm font-medium text-foreground">
+							{appState.appName}
+						</p>
+						<p className="truncate text-xs text-muted-foreground">
+							{bridgeStatus}
+						</p>
 					</div>
-
-					<div className="grid gap-4 text-sm">
-						<div className="border border-border bg-background/80 p-4">
-							<div className="flex items-center justify-between gap-3">
-								<span className="text-muted-foreground">Runtime</span>
-								<span className="text-foreground">{appState.runtime}</span>
-							</div>
-							<div className="mt-3 flex items-center justify-between gap-3">
-								<span className="text-muted-foreground">Bridge status</span>
-								<span className="max-w-[16rem] text-right text-foreground">
-									{bridgeStatus}
-								</span>
-							</div>
-						</div>
-
-						<div className="border border-border bg-background/80 p-4">
-							<p className="text-muted-foreground">App info</p>
-							<dl className="mt-3 grid gap-2 text-foreground">
-								<div className="flex items-center justify-between gap-3">
-									<dt>Version</dt>
-									<dd>{appState.appVersion}</dd>
-								</div>
-								<div className="flex items-center justify-between gap-3">
-									<dt>Packaged</dt>
-									<dd>{appState.isPackaged ? "yes" : "no"}</dd>
-								</div>
-								<div className="flex items-center justify-between gap-3">
-									<dt>Platform</dt>
-									<dd>{appState.platform}</dd>
-								</div>
-								<div className="flex items-center justify-between gap-3">
-									<dt>Data directory</dt>
-									<dd className="max-w-56 truncate text-right">
-										{appState.dataDirectory ?? "not attached"}
-									</dd>
-								</div>
-							</dl>
-						</div>
+					<div className="hidden text-right text-xs text-muted-foreground sm:block">
+						<p>{appState.runtime}</p>
+						<p>{syncState.activeRun ? "Sync active" : "Sync idle"}</p>
 					</div>
 				</header>
 
-				<main className="grid gap-6 lg:grid-cols-[1.1fr_1fr]">
-					<section className="border border-border bg-card p-6">
-						<div className="flex items-baseline justify-between gap-4">
-							<div>
-								<p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
-									Process split
-								</p>
-								<h2 className="mt-2 text-xl font-medium">Desktop services</h2>
+				<div className="flex flex-1 flex-col gap-6 px-4 py-4 sm:px-6 lg:px-8 lg:py-6">
+					<section
+						id={sectionAnchors.overview}
+						className="scroll-mt-24 grid gap-6 xl:grid-cols-[1.6fr_0.9fr]"
+					>
+						<div className="border border-border bg-card/80 p-6 backdrop-blur lg:p-8">
+							<div className="space-y-5">
+								<div className="space-y-3">
+									<p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+										MVP foundation
+									</p>
+									<h1 className="max-w-3xl text-3xl leading-tight font-medium text-balance sm:text-4xl lg:text-5xl">
+										Local-first archive for your liked tweets, built as a
+										desktop app.
+									</h1>
+									<p className="max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">
+										The app now owns a local archive and a desktop-managed sync
+										loop. Starting a sync opens a persistent Playwright profile,
+										waits for an authenticated X session when needed, and hands
+										off to the real capture boundary that the next slice will
+										deepen.
+									</p>
+								</div>
+
+								<div className="flex flex-wrap gap-3">
+									<Button
+										onClick={handleOpenDataDirectory}
+										disabled={isOpeningDataDir}
+									>
+										{isOpeningDataDir
+											? "Opening data directory..."
+											: "Open data directory"}
+									</Button>
+									<Button
+										variant="outline"
+										onClick={() =>
+											setBridgeStatus(
+												"Next implementation target: scroll the Likes timeline and normalize real rows from the Playwright session.",
+											)
+										}
+									>
+										Next implementation target
+									</Button>
+								</div>
 							</div>
-							<p className="text-xs text-muted-foreground">
-								Secure preload bridge
-							</p>
 						</div>
 
-						<div className="mt-5 grid gap-3">
-							{appState.services.map((service) => (
-								<article
-									key={service.id}
-									className={`border p-4 transition-colors ${serviceTone(service)}`}
-								>
-									<div className="flex items-center justify-between gap-3 text-xs uppercase tracking-[0.24em]">
-										<span>{service.label}</span>
-										<span>{service.status}</span>
+						<div className="grid gap-4 text-sm">
+							<div className="border border-border bg-card/80 p-4 backdrop-blur">
+								<div className="flex items-center justify-between gap-3">
+									<span className="text-muted-foreground">Runtime</span>
+									<span className="text-foreground">{appState.runtime}</span>
+								</div>
+								<div className="mt-3 flex items-center justify-between gap-3">
+									<span className="text-muted-foreground">Bridge status</span>
+									<span className="max-w-[16rem] text-right text-foreground">
+										{bridgeStatus}
+									</span>
+								</div>
+							</div>
+
+							<div className="border border-border bg-card/80 p-4 backdrop-blur">
+								<p className="text-muted-foreground">App info</p>
+								<dl className="mt-3 grid gap-2 text-foreground">
+									<div className="flex items-center justify-between gap-3">
+										<dt>Version</dt>
+										<dd>{appState.appVersion}</dd>
 									</div>
-									<p className="mt-3 text-sm leading-6">{service.detail}</p>
-								</article>
-							))}
-						</div>
-
-						<div className="mt-6 border border-border bg-background/80 p-4 text-sm leading-6 text-muted-foreground">
-							<p className="text-foreground">Archive database</p>
-							<p className="mt-2 break-all">
-								{archive.databasePath ?? "No database yet"}
-							</p>
+									<div className="flex items-center justify-between gap-3">
+										<dt>Packaged</dt>
+										<dd>{appState.isPackaged ? "yes" : "no"}</dd>
+									</div>
+									<div className="flex items-center justify-between gap-3">
+										<dt>Platform</dt>
+										<dd>{appState.platform}</dd>
+									</div>
+									<div className="flex items-center justify-between gap-3">
+										<dt>Data directory</dt>
+										<dd className="max-w-56 truncate text-right">
+											{appState.dataDirectory ?? "not attached"}
+										</dd>
+									</div>
+								</dl>
+							</div>
 						</div>
 					</section>
 
-					<section className="grid gap-6">
-						<div className="border border-border bg-card p-6">
-							<div className="flex items-start justify-between gap-4">
+					<div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+						<section
+							id={sectionAnchors.services}
+							className="scroll-mt-24 border border-border bg-card p-6"
+						>
+							<div className="flex items-baseline justify-between gap-4">
 								<div>
 									<p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
-										Sync control
+										Process split
 									</p>
-									<h2 className="mt-2 text-xl font-medium text-foreground">
-										Desktop-managed job orchestration
-									</h2>
-									<p className="mt-3 max-w-xl text-sm leading-6 text-muted-foreground">
-										Set a per-run import cap before starting sync. The worker
-										will keep scrolling and collecting Likes until it reaches
-										the limit or the timeline stops yielding more results.
-									</p>
+									<h2 className="mt-2 text-xl font-medium">Desktop services</h2>
 								</div>
-								<Button
-									onClick={handleStartSync}
-									disabled={!syncState.canStart || isStartingSync}
-								>
-									{isStartingSync
-										? "Starting sync..."
-										: syncState.activeRun
-											? "Sync running"
-											: "Start sync"}
-								</Button>
+								<p className="text-xs text-muted-foreground">
+									Secure preload bridge
+								</p>
 							</div>
 
-							<div className="mt-5 border border-border bg-background/80 p-4">
-								<div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-									<label className="grid gap-2 text-sm text-foreground">
-										<span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-											Sync limit
-										</span>
-										<input
-											type="number"
-											min={1}
-											max={maxSyncLimit}
-											step={1}
-											inputMode="numeric"
-											value={syncLimitInput}
-											disabled={Boolean(syncState.activeRun) || isStartingSync}
-											onChange={(event) =>
-												setSyncLimitInput(event.target.value)
-											}
-											className="w-full min-w-40 border border-border bg-card px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-primary sm:w-44"
-										/>
-									</label>
-									<p className="max-w-xl text-xs leading-6 text-muted-foreground">
-										Allowed range: 1 to {maxSyncLimit}. Default:{" "}
-										{defaultSyncLimit}. Use a smaller cap when you want a quick
-										checkpoint instead of pulling a large Likes history in one
-										run.
-									</p>
-								</div>
-							</div>
-
-							<div className="mt-5 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-								<div className="border border-border bg-background/80 p-4">
-									<p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-										Active run
-									</p>
-									{syncState.activeRun ? (
-										<div
-											className={`mt-4 border p-4 ${syncTone(syncState.activeRun)}`}
-										>
-											<div className="flex items-center justify-between gap-3 text-xs uppercase tracking-[0.2em]">
-												<span>{syncState.activeRun.phase}</span>
-												<span>{syncState.activeRun.status}</span>
-											</div>
-											<p className="mt-3 text-sm leading-6 text-foreground">
-												{syncState.activeRun.message}
-											</p>
-											<dl className="mt-4 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
-												<div>
-													<dt>Started</dt>
-													<dd className="mt-1 text-foreground">
-														{formatDate(syncState.activeRun.startedAt)}
-													</dd>
-												</div>
-												<div>
-													<dt>Imported</dt>
-													<dd className="mt-1 text-foreground">
-														{syncState.activeRun.importedCount} rows
-													</dd>
-												</div>
-												<div>
-													<dt>Scanned</dt>
-													<dd className="mt-1 text-foreground">
-														{syncState.activeRun.scannedCount} likes
-													</dd>
-												</div>
-												<div>
-													<dt>Source</dt>
-													<dd className="mt-1 text-foreground">
-														{syncState.activeRun.source}
-													</dd>
-												</div>
-											</dl>
+							<div className="mt-5 grid gap-3">
+								{appState.services.map((service) => (
+									<article
+										key={service.id}
+										className={`border p-4 transition-colors ${serviceTone(service)}`}
+									>
+										<div className="flex items-center justify-between gap-3 text-xs uppercase tracking-[0.24em]">
+											<span>{service.label}</span>
+											<span>{service.status}</span>
 										</div>
-									) : (
-										<p className="mt-4 text-sm leading-6 text-muted-foreground">
-											No sync is running. Starting one now opens the persistent
-											browser profile and waits for an authenticated X session
-											before capture.
+										<p className="mt-3 text-sm leading-6">{service.detail}</p>
+									</article>
+								))}
+							</div>
+
+							<div className="mt-6 border border-border bg-background/80 p-4 text-sm leading-6 text-muted-foreground">
+								<p className="text-foreground">Archive database</p>
+								<p className="mt-2 break-all">
+									{archive.databasePath ?? "No database yet"}
+								</p>
+							</div>
+						</section>
+
+						<section
+							id={sectionAnchors.sync}
+							className="scroll-mt-24 grid gap-6"
+						>
+							<div className="border border-border bg-card p-6">
+								<div className="flex items-start justify-between gap-4">
+									<div>
+										<p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+											Sync control
 										</p>
-									)}
+										<h2 className="mt-2 text-xl font-medium text-foreground">
+											Desktop-managed job orchestration
+										</h2>
+										<p className="mt-3 max-w-xl text-sm leading-6 text-muted-foreground">
+											Set a per-run import cap before starting sync. The worker
+											will keep scrolling and collecting Likes until it reaches
+											the limit or the timeline stops yielding more results.
+										</p>
+									</div>
+									<Button
+										onClick={handleStartSync}
+										disabled={!syncState.canStart || isStartingSync}
+									>
+										{isStartingSync
+											? "Starting sync..."
+											: syncState.activeRun
+												? "Sync running"
+												: "Start sync"}
+									</Button>
 								</div>
 
-								<div className="border border-border bg-background/80 p-4">
-									<p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-										Recent runs
-									</p>
-									{syncState.recentRuns.length === 0 ? (
-										<p className="mt-4 text-sm leading-6 text-muted-foreground">
-											No runs recorded yet. The first manual run will be stored
-											in the local archive database.
+								<div className="mt-5 border border-border bg-background/80 p-4">
+									<div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+										<label className="grid gap-2 text-sm text-foreground">
+											<span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+												Sync limit
+											</span>
+											<input
+												type="number"
+												min={1}
+												max={maxSyncLimit}
+												step={1}
+												inputMode="numeric"
+												value={syncLimitInput}
+												disabled={
+													Boolean(syncState.activeRun) || isStartingSync
+												}
+												onChange={(event) =>
+													setSyncLimitInput(event.target.value)
+												}
+												className="w-full min-w-40 border border-border bg-card px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-primary sm:w-44"
+											/>
+										</label>
+										<p className="max-w-xl text-xs leading-6 text-muted-foreground">
+											Allowed range: 1 to {maxSyncLimit}. Default:{" "}
+											{defaultSyncLimit}. Use a smaller cap when you want a
+											quick checkpoint instead of pulling a large Likes history
+											in one run.
 										</p>
-									) : (
-										<div className="mt-4 grid gap-3">
-											{syncState.recentRuns.map((run) => (
-												<article
-													key={run.id}
-													className={`border p-3 ${syncTone(run)}`}
-												>
-													<div className="flex items-center justify-between gap-3 text-xs uppercase tracking-[0.2em]">
-														<span>{run.phase}</span>
-														<span>{run.status}</span>
+									</div>
+								</div>
+
+								<div className="mt-5 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+									<div className="border border-border bg-background/80 p-4">
+										<p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+											Active run
+										</p>
+										{syncState.activeRun ? (
+											<div
+												className={`mt-4 border p-4 ${syncTone(syncState.activeRun)}`}
+											>
+												<div className="flex items-center justify-between gap-3 text-xs uppercase tracking-[0.2em]">
+													<span>{syncState.activeRun.phase}</span>
+													<span>{syncState.activeRun.status}</span>
+												</div>
+												<p className="mt-3 text-sm leading-6 text-foreground">
+													{syncState.activeRun.message}
+												</p>
+												<dl className="mt-4 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
+													<div>
+														<dt>Started</dt>
+														<dd className="mt-1 text-foreground">
+															{formatDate(syncState.activeRun.startedAt)}
+														</dd>
 													</div>
-													<p className="mt-2 text-sm leading-6 text-foreground">
-														{run.message}
-													</p>
-													<p className="mt-2 text-xs text-muted-foreground">
-														{formatDate(run.startedAt)} · {run.scannedCount}{" "}
-														scanned · {run.importedCount} imported
-													</p>
-												</article>
-											))}
-										</div>
-									)}
+													<div>
+														<dt>Imported</dt>
+														<dd className="mt-1 text-foreground">
+															{syncState.activeRun.importedCount} rows
+														</dd>
+													</div>
+													<div>
+														<dt>Scanned</dt>
+														<dd className="mt-1 text-foreground">
+															{syncState.activeRun.scannedCount} likes
+														</dd>
+													</div>
+													<div>
+														<dt>Source</dt>
+														<dd className="mt-1 text-foreground">
+															{syncState.activeRun.source}
+														</dd>
+													</div>
+												</dl>
+											</div>
+										) : (
+											<p className="mt-4 text-sm leading-6 text-muted-foreground">
+												No sync is running. Starting one now opens the
+												persistent browser profile and waits for an
+												authenticated X session before capture.
+											</p>
+										)}
+									</div>
+
+									<div className="border border-border bg-background/80 p-4">
+										<p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+											Recent runs
+										</p>
+										{syncState.recentRuns.length === 0 ? (
+											<p className="mt-4 text-sm leading-6 text-muted-foreground">
+												No runs recorded yet. The first manual run will be
+												stored in the local archive database.
+											</p>
+										) : (
+											<div className="mt-4 grid gap-3">
+												{syncState.recentRuns.map((run) => (
+													<article
+														key={run.id}
+														className={`border p-3 ${syncTone(run)}`}
+													>
+														<div className="flex items-center justify-between gap-3 text-xs uppercase tracking-[0.2em]">
+															<span>{run.phase}</span>
+															<span>{run.status}</span>
+														</div>
+														<p className="mt-2 text-sm leading-6 text-foreground">
+															{run.message}
+														</p>
+														<p className="mt-2 text-xs text-muted-foreground">
+															{formatDate(run.startedAt)} · {run.scannedCount}{" "}
+															scanned · {run.importedCount} imported
+														</p>
+													</article>
+												))}
+											</div>
+										)}
+									</div>
 								</div>
 							</div>
-						</div>
 
-						<div className="border border-border bg-card p-6">
-							<p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
-								Local archive
-							</p>
-							<div className="mt-5 grid gap-3 sm:grid-cols-3">
-								<div className="border border-border bg-background/80 p-4">
-									<p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-										Tweets
-									</p>
-									<p className="mt-3 text-2xl text-foreground">
-										{archive.stats.tweetCount}
-									</p>
+							<div className="border border-border bg-card p-6">
+								<p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+									Local archive
+								</p>
+								<div className="mt-5 grid gap-3 sm:grid-cols-3">
+									<div className="border border-border bg-background/80 p-4">
+										<p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+											Tweets
+										</p>
+										<p className="mt-3 text-2xl text-foreground">
+											{archive.stats.tweetCount}
+										</p>
+									</div>
+									<div className="border border-border bg-background/80 p-4">
+										<p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+											Authors
+										</p>
+										<p className="mt-3 text-2xl text-foreground">
+											{archive.stats.authorCount}
+										</p>
+									</div>
+									<div className="border border-border bg-background/80 p-4">
+										<p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+											Media
+										</p>
+										<p className="mt-3 text-2xl text-foreground">
+											{archive.stats.mediaCount}
+										</p>
+									</div>
 								</div>
-								<div className="border border-border bg-background/80 p-4">
-									<p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-										Authors
-									</p>
-									<p className="mt-3 text-2xl text-foreground">
-										{archive.stats.authorCount}
-									</p>
-								</div>
-								<div className="border border-border bg-background/80 p-4">
-									<p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-										Media
-									</p>
-									<p className="mt-3 text-2xl text-foreground">
-										{archive.stats.mediaCount}
-									</p>
-								</div>
+								<p className="mt-4 text-sm text-muted-foreground">
+									Latest liked tweet saved:{" "}
+									{formatDate(archive.stats.latestLikedAt)}
+								</p>
 							</div>
-							<p className="mt-4 text-sm text-muted-foreground">
-								Latest liked tweet saved:{" "}
-								{formatDate(archive.stats.latestLikedAt)}
-							</p>
-						</div>
+						</section>
+					</div>
 
+					<section
+						id={sectionAnchors.archive}
+						className="scroll-mt-24 grid gap-6"
+					>
 						<div className="border border-border bg-card p-6">
 							<p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
 								Recent archive rows
@@ -722,7 +789,12 @@ export function App() {
 								</div>
 							)}
 						</div>
+					</section>
 
+					<section
+						id={sectionAnchors.roadmap}
+						className="scroll-mt-24 grid gap-6 xl:grid-cols-[0.95fr_1.05fr]"
+					>
 						<div className="border border-border bg-card p-6">
 							<p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
 								Planned screens
@@ -761,18 +833,18 @@ export function App() {
 							</ol>
 						</div>
 					</section>
-				</main>
 
-				<footer className="border border-border bg-card/80 p-4 text-xs leading-6 text-muted-foreground backdrop-blur">
-					Desktop mode exposes Electron, Chrome, and Node versions through the
-					preload bridge. Press{" "}
-					<kbd className="border border-border px-1.5 py-0.5 text-[10px]">
-						d
-					</kbd>{" "}
-					to toggle theme.
-				</footer>
-			</div>
-		</div>
+					<footer className="border border-border bg-card/80 p-4 text-xs leading-6 text-muted-foreground backdrop-blur">
+						Desktop mode exposes Electron, Chrome, and Node versions through the
+						preload bridge. Press{" "}
+						<kbd className="border border-border px-1.5 py-0.5 text-[10px]">
+							d
+						</kbd>{" "}
+						to toggle theme.
+					</footer>
+				</div>
+			</SidebarInset>
+		</SidebarProvider>
 	);
 }
 
