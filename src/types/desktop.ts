@@ -7,6 +7,14 @@ export const desktopChannels = {
   openDataDirectory: "desktop:open-data-directory",
 } as const
 
+export const desktopMediaScheme = "tlm-media"
+
+export function createDesktopMediaUrl(localPath: string) {
+  const url = new URL(`${desktopMediaScheme}://local-file`)
+  url.searchParams.set("path", localPath)
+  return url.toString()
+}
+
 export type DesktopServiceStatus = "ready" | "planned" | "blocked"
 
 export type DesktopService = {

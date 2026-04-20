@@ -24,6 +24,7 @@ import type {
 	SyncStartOptions,
 	SyncState,
 } from "@/types/desktop";
+import { createDesktopMediaUrl } from "@/types/desktop";
 
 const defaultSyncLimit = 200;
 const maxSyncLimit = 1000;
@@ -148,9 +149,11 @@ function loadStoredSyncLimit() {
 
 function resolveMediaSource(media: ArchiveMedia) {
 	if (media.localPath) {
-		return media.localPath.startsWith("file://")
-			? media.localPath
-			: `file://${media.localPath}`;
+		return window.twitterLikesDesktop
+			? createDesktopMediaUrl(media.localPath)
+			: media.localPath.startsWith("file://")
+				? media.localPath
+				: `file://${media.localPath}`;
 	}
 
 	return media.remoteUrl;

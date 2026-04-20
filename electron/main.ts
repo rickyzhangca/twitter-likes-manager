@@ -1,10 +1,12 @@
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { app, BrowserWindow, ipcMain, shell } from "electron";
+import { app, BrowserWindow, ipcMain, protocol, shell } from "electron";
 import {
 	type ArchiveQueryOptions,
 	type DesktopAppState,
 	desktopChannels,
+	desktopMediaScheme,
 	type SyncStartOptions,
 } from "../src/types/desktop";
 import { ArchiveStore } from "./archive-store";
@@ -15,6 +17,19 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const preloadPath = path.join(__dirname, "preload.mjs");
 let archiveStore: ArchiveStore | null = null;
 let syncService: SyncService | null = null;
+
+protocol.registerSchemesAsPrivileged([
+	{
+		scheme: desktopMediaScheme,
+		privileges: {
+			standard: true,
+			secure: true,
+			supportFetchAPI: true,
+			stream: true,
+			corsEnabled: true,
+		},
+	},
+]);
 
 app.setName(applicationName);
 app.setPath("userData", path.join(app.getPath("appData"), applicationName));
@@ -67,9 +82,9 @@ function registerIpcHandlers() {
 	ipcMain.handle(
 		desktopChannels.getArchiveSnapshot,
 		(_event, options?: ArchiveQueryOptions) => {
-		if (!archiveStore) {
-			throw new Error("Archive store is not initialized");
-		}
+			if (!archiveStore) {
+				throw new Error("Archive store is not initialized");
+			}
 
 			return archiveStore.getArchiveSnapshot(options);
 		},
@@ -99,6 +114,73 @@ function registerIpcHandlers() {
 			throw new Error(result);
 		}
 	});
+}
+
+function registerMediaProtocol() {
+	protocol.handle(desktopMediaScheme, async (request) => {
+		if (!archiveStore) {
+			return new Response("Archive store is not initialized", {
+				status: 503,
+			});
+		}
+
+		const requestUrl = new URL(request.url);
+		const requestedPath = requestUrl.searchParams.get("path");
+
+		if (!requestedPath) {
+			return new Response("Missing media path", { status: 400 });
+		}
+
+		if (
+			requestUrl.protocol !== `${desktopMediaScheme}:` ||
+			requestUrl.hostname !== "local-file" ||
+			(requestUrl.pathname !== "" && requestUrl.pathname !== "/")
+		) {
+			return new Response("Forbidden media path", { status: 403 });
+		}
+
+		const mediaRoot = path.resolve(archiveStore.mediaDirectory);
+		const resolvedPath = path.resolve(requestedPath);
+		const relativePath = path.relative(mediaRoot, resolvedPath);
+
+		if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
+			return new Response("Forbidden media path", { status: 403 });
+		}
+
+		try {
+			const fileContent = await readFile(resolvedPath);
+
+			return new Response(fileContent, {
+				headers: {
+					"content-type": resolveMediaContentType(resolvedPath),
+					"cache-control": "public, max-age=31536000, immutable",
+				},
+			});
+		} catch (error) {
+			console.warn(
+				`[desktop-media] failed to read ${resolvedPath}: ${error instanceof Error ? error.message : String(error)}`,
+			);
+			return new Response("Media not found", { status: 404 });
+		}
+	});
+}
+
+function resolveMediaContentType(filePath: string) {
+	switch (path.extname(filePath).toLowerCase()) {
+		case ".jpg":
+		case ".jpeg":
+			return "image/jpeg";
+		case ".png":
+			return "image/png";
+		case ".gif":
+			return "image/gif";
+		case ".webp":
+			return "image/webp";
+		case ".mp4":
+			return "video/mp4";
+		default:
+			return "application/octet-stream";
+	}
 }
 
 async function createMainWindow() {
@@ -137,6 +219,7 @@ process.on("message", (message) => {
 app.whenReady().then(async () => {
 	archiveStore = new ArchiveStore({ dataDirectory: app.getPath("userData") });
 	syncService = new SyncService(archiveStore);
+	registerMediaProtocol();
 	registerIpcHandlers();
 	await createMainWindow();
 
