@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import type {
+	ArchiveMedia,
 	ArchiveSnapshot,
 	ArchiveTweetPreview,
 	DesktopAppState,
@@ -152,6 +153,59 @@ function loadStoredSyncLimit() {
 	return storedValue
 		? String(normalizeSyncLimit(storedValue))
 		: String(defaultSyncLimit);
+}
+
+function resolveMediaSource(media: ArchiveMedia) {
+	if (media.localPath) {
+		return media.localPath.startsWith("file://")
+			? media.localPath
+			: `file://${media.localPath}`;
+	}
+
+	return media.remoteUrl;
+}
+
+function TweetMediaPreview({ media }: { media: ArchiveMedia[] }) {
+	if (media.length === 0) {
+		return null;
+	}
+
+	return (
+		<div className="mt-4 grid gap-3 sm:grid-cols-2">
+			{media.map((item) => {
+				const source = resolveMediaSource(item);
+
+				return (
+					<a
+						key={item.id}
+						href={source}
+						target="_blank"
+						rel="noreferrer"
+						className="group block overflow-hidden border border-border bg-background/80"
+					>
+						{item.kind === "photo" ? (
+							<img
+								src={source}
+								alt="Tweet media"
+								loading="lazy"
+								className="aspect-4/3 h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
+							/>
+						) : (
+							<div className="aspect-4/3 flex h-full w-full items-center justify-center bg-black/90 p-4 text-center text-sm text-white">
+								<span>
+									{item.kind === "gif" ? "Animated GIF" : "Video"} preview
+								</span>
+							</div>
+						)}
+						<div className="flex items-center justify-between border-t border-border px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+							<span>{item.kind}</span>
+							<span>Open</span>
+						</div>
+					</a>
+				);
+			})}
+		</div>
+	);
 }
 
 export function App() {
@@ -307,7 +361,7 @@ export function App() {
 	}
 
 	return (
-		<div className="min-h-svh bg-[radial-gradient(circle_at_top_left,_color-mix(in_oklab,_var(--color-primary)_14%,_transparent),_transparent_32%),linear-gradient(180deg,color-mix(in_oklab,_var(--color-background)_88%,_black_12%),var(--color-background))]">
+		<div className="min-h-svh bg-[radial-gradient(circle_at_top_left,color-mix(in_oklab,var(--color-primary)_14%,transparent),transparent_32%),linear-gradient(180deg,color-mix(in_oklab,var(--color-background)_88%,black_12%),var(--color-background))]">
 			<div className="mx-auto flex min-h-svh w-full max-w-7xl flex-col gap-8 px-6 py-8 lg:px-10 lg:py-10">
 				<header className="grid gap-8 border border-border bg-card/80 p-6 backdrop-blur lg:grid-cols-[1.6fr_0.9fr] lg:p-8">
 					<div className="space-y-5">
@@ -380,7 +434,7 @@ export function App() {
 								</div>
 								<div className="flex items-center justify-between gap-3">
 									<dt>Data directory</dt>
-									<dd className="max-w-[14rem] truncate text-right">
+									<dd className="max-w-56 truncate text-right">
 										{appState.dataDirectory ?? "not attached"}
 									</dd>
 								</div>
@@ -635,6 +689,7 @@ export function App() {
 											<p className="mt-3 text-sm leading-6 text-foreground">
 												{tweet.text}
 											</p>
+											<TweetMediaPreview media={tweet.media} />
 											<dl className="mt-4 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
 												<div>
 													<dt>Liked</dt>
