@@ -61,6 +61,7 @@ export type ArchiveSnapshot = {
   dataDirectory: string | null
   stats: {
     tweetCount: number
+    filteredTweetCount: number
     authorCount: number
     mediaCount: number
     latestImportedAt: string | null
@@ -71,6 +72,7 @@ export type ArchiveSnapshot = {
 export type ArchiveQueryOptions = {
   search?: string
   limit?: number
+  offset?: number
 }
 
 export type SyncPhase =

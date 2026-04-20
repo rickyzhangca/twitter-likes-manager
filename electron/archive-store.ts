@@ -376,6 +376,7 @@ export class ArchiveStore {
 
   getArchiveSnapshot(options?: ArchiveQueryOptions): ArchiveSnapshot {
     const limit = normalizeArchiveLimit(options?.limit)
+    const offset = normalizeArchiveOffset(options?.offset)
     const searchTerm = normalizeArchiveSearch(options?.search)
     const escapedSearchTerm = searchTerm
       ? `%${escapeSqlLikePattern(searchTerm)}%`
@@ -397,6 +398,28 @@ export class ArchiveStore {
       media_count: number
       latest_imported_at: string | null
     }
+
+    const filteredTweetCount = escapedSearchTerm
+      ? (
+          this.database
+            .prepare(
+              `
+                SELECT COUNT(DISTINCT tweets.id) AS cnt
+                FROM tweets
+                JOIN authors ON authors.id = tweets.author_id
+                WHERE tweets.source = 'like'
+                  AND (
+                    lower(tweets.text) LIKE ? ESCAPE '\\'
+                    OR lower(authors.username) LIKE ? ESCAPE '\\'
+                    OR lower(authors.display_name) LIKE ? ESCAPE '\\'
+                  )
+              `
+            )
+            .get(escapedSearchTerm, escapedSearchTerm, escapedSearchTerm) as {
+            cnt: number
+          }
+        ).cnt
+      : stats.tweet_count
 
     const tweetRows = this.database
       .prepare(
@@ -445,6 +468,7 @@ export class ArchiveStore {
           GROUP BY tweets.id
           ORDER BY tweets.imported_at DESC
             LIMIT ?
+            OFFSET ?
         `
       )
         .all(
@@ -452,6 +476,7 @@ export class ArchiveStore {
             ? [escapedSearchTerm, escapedSearchTerm, escapedSearchTerm]
             : []),
           limit,
+          offset,
         ) as TweetRow[]
 
     const mediaStatement = this.database.prepare(
@@ -468,6 +493,7 @@ export class ArchiveStore {
       dataDirectory: this.dataDirectory,
       stats: {
         tweetCount: stats.tweet_count,
+        filteredTweetCount,
         authorCount: stats.author_count,
         mediaCount: stats.media_count,
         latestImportedAt: stats.latest_imported_at,
@@ -1304,6 +1330,14 @@ function normalizeArchiveLimit(limit: number | undefined) {
   }
 
   return Math.min(200, Math.max(1, Math.trunc(limit)))
+}
+
+function normalizeArchiveOffset(offset: number | undefined) {
+  if (typeof offset !== "number" || !Number.isFinite(offset)) {
+    return 0
+  }
+
+  return Math.max(0, Math.trunc(offset))
 }
 
 function normalizeArchiveSearch(search: string | undefined) {

@@ -58,6 +58,7 @@ const browserPreviewArchive: ArchiveSnapshot = {
 	dataDirectory: null,
 	stats: {
 		tweetCount: 0,
+		filteredTweetCount: 0,
 		authorCount: 0,
 		mediaCount: 0,
 		latestImportedAt: null,
@@ -75,11 +76,14 @@ const browserPreviewSyncState: SyncState = {
 type WorkspaceContextValue = {
 	appState: DesktopAppState;
 	archive: ArchiveSnapshot;
+	archivePage: number;
 	archiveSearchInput: string;
+	archiveTotalPages: number;
 	bridgeStatus: string;
 	deferredArchiveSearch: string;
 	handleOpenDataDirectory: () => Promise<void>;
 	handleResumeSync: () => Promise<void>;
+	handleSetArchivePage: (page: number) => void;
 	handleStartSync: () => Promise<void>;
 	handleRetryFailedMediaForRun: (runId: string) => Promise<void>;
 	isLoadingArchive: boolean;
@@ -149,6 +153,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 		loadStoredSyncLimit(),
 	);
 	const deferredArchiveSearch = useDeferredValue(archiveSearchInput.trim());
+	const [archivePage, setArchivePage] = useState(1);
+	const PAGE_SIZE = 24;
+
+	const archiveTotalPages =
+		Math.ceil(archive.stats.filteredTweetCount / PAGE_SIZE) || 1;
 
 	useEffect(() => {
 		let isDisposed = false;
@@ -200,7 +209,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 		void desktopBridge
 			.getArchiveSnapshot({
 				search: deferredArchiveSearch,
-				limit: deferredArchiveSearch ? 60 : 24,
+				limit: PAGE_SIZE,
+				offset: (archivePage - 1) * PAGE_SIZE,
 			})
 			.then((nextArchive) => {
 				if (isDisposed) {
@@ -228,7 +238,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 		return () => {
 			isDisposed = true;
 		};
-	}, [deferredArchiveSearch]);
+	}, [deferredArchiveSearch, archivePage]);
 
 	useEffect(() => {
 		const desktopBridge = window.twitterLikesDesktop;
@@ -247,7 +257,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 						setIsLoadingArchive(true);
 						const nextArchive = await desktopBridge.getArchiveSnapshot({
 							search: deferredArchiveSearch,
-							limit: deferredArchiveSearch ? 60 : 24,
+							limit: PAGE_SIZE,
+							offset: (archivePage - 1) * PAGE_SIZE,
 						});
 						setArchive(nextArchive);
 						setIsLoadingArchive(false);
@@ -267,7 +278,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 		return () => {
 			window.clearInterval(timer);
 		};
-	}, [deferredArchiveSearch, syncState.activeRun]);
+	}, [deferredArchiveSearch, archivePage, syncState.activeRun]);
 
 	async function handleOpenDataDirectory() {
 		if (!window.twitterLikesDesktop) {
@@ -379,6 +390,15 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 		}
 
 		setArchiveSearchInputState(value);
+		setArchivePage(1);
+	}
+
+	function handleSetArchivePage(page: number) {
+		if (window.twitterLikesDesktop) {
+			setIsLoadingArchive(true);
+		}
+
+		setArchivePage(page);
 	}
 
 	return (
@@ -386,12 +406,15 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 			value={{
 				appState,
 				archive,
+				archivePage,
 				archiveSearchInput,
+				archiveTotalPages,
 				bridgeStatus,
 				deferredArchiveSearch,
 				handleOpenDataDirectory,
 				handleResumeSync,
 				handleRetryFailedMediaForRun,
+				handleSetArchivePage,
 				handleStartSync,
 				isLoadingArchive,
 				isOpeningDataDir,

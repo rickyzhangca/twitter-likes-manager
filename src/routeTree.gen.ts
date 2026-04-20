@@ -13,7 +13,6 @@ import { Route as SyncRouteImport } from './routes/sync'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as LogRouteImport } from './routes/log'
 import { Route as HomeRouteImport } from './routes/home'
-import { Route as ArchiveRouteImport } from './routes/archive'
 import { Route as IndexRouteImport } from './routes/index'
 
 const SyncRoute = SyncRouteImport.update({
@@ -36,11 +35,6 @@ const HomeRoute = HomeRouteImport.update({
   path: '/home',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ArchiveRoute = ArchiveRouteImport.update({
-  id: '/archive',
-  path: '/archive',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -49,7 +43,6 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/archive': typeof ArchiveRoute
   '/home': typeof HomeRoute
   '/log': typeof LogRoute
   '/settings': typeof SettingsRoute
@@ -57,7 +50,6 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/archive': typeof ArchiveRoute
   '/home': typeof HomeRoute
   '/log': typeof LogRoute
   '/settings': typeof SettingsRoute
@@ -66,7 +58,6 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/archive': typeof ArchiveRoute
   '/home': typeof HomeRoute
   '/log': typeof LogRoute
   '/settings': typeof SettingsRoute
@@ -74,15 +65,14 @@ export interface FileRoutesById {
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/archive' | '/home' | '/log' | '/settings' | '/sync'
+  fullPaths: '/' | '/home' | '/log' | '/settings' | '/sync'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/archive' | '/home' | '/log' | '/settings' | '/sync'
-  id: '__root__' | '/' | '/archive' | '/home' | '/log' | '/settings' | '/sync'
+  to: '/' | '/home' | '/log' | '/settings' | '/sync'
+  id: '__root__' | '/' | '/home' | '/log' | '/settings' | '/sync'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  ArchiveRoute: typeof ArchiveRoute
   HomeRoute: typeof HomeRoute
   LogRoute: typeof LogRoute
   SettingsRoute: typeof SettingsRoute
@@ -119,13 +109,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HomeRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/archive': {
-      id: '/archive'
-      path: '/archive'
-      fullPath: '/archive'
-      preLoaderRoute: typeof ArchiveRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/': {
       id: '/'
       path: '/'
@@ -138,7 +121,6 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  ArchiveRoute: ArchiveRoute,
   HomeRoute: HomeRoute,
   LogRoute: LogRoute,
   SettingsRoute: SettingsRoute,

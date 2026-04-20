@@ -83,7 +83,7 @@ export function AppSidebar({
 		<Sidebar variant="inset">
 			<SidebarHeader className="mt-5 px-0">
 				<SidebarMenuButton
-					render={<Link preload="intent" to="/home" />}
+					render={<Link preload="intent" to="/home" search={{ page: 1 }} />}
 					size="lg"
 					tooltip="Home"
 				>
