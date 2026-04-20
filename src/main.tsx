@@ -1,10 +1,11 @@
+import { RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import "./index.css";
 import { ThemeProvider } from "@/components/theme-provider.tsx";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import App from "./App.tsx";
+import { router } from "./router";
 
 const rootElement = document.getElementById("root");
 
@@ -16,7 +17,7 @@ createRoot(rootElement).render(
 	<StrictMode>
 		<ThemeProvider>
 			<TooltipProvider>
-				<App />
+				<RouterProvider router={router} />
 			</TooltipProvider>
 		</ThemeProvider>
 	</StrictMode>,

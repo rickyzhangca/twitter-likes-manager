@@ -5,8 +5,8 @@ import {
 	HouseIcon,
 	type Icon,
 	MonitorIcon,
-	TargetIcon,
 } from "@phosphor-icons/react";
+import { Link } from "@tanstack/react-router";
 
 import {
 	Sidebar,
@@ -29,33 +29,22 @@ import type {
 	SyncState,
 } from "@/types/desktop";
 
-export const appSectionIds = [
-	"overview",
-	"services",
-	"sync",
-	"archive",
-] as const;
-
-export type AppSectionId = (typeof appSectionIds)[number];
-
 type AppSidebarProps = {
-	activeSection: AppSectionId;
 	appState: DesktopAppState;
 	archive: ArchiveSnapshot;
 	bridgeStatus: string;
+	currentPath: string;
 	isOpeningDataDir: boolean;
 	onOpenDataDirectory: () => void;
-	onSelectSection: (section: AppSectionId) => void;
-	sectionAnchors: Record<AppSectionId, string>;
 	syncState: SyncState;
 };
 
 type NavigationItem = {
-	id: AppSectionId;
 	label: string;
+	helpText: string;
 	icon: Icon;
 	badge?: string;
-	helpText: string;
+	to: "/overview" | "/services" | "/sync" | "/archive";
 };
 
 function formatCompactCount(value: number) {
@@ -65,60 +54,48 @@ function formatCompactCount(value: number) {
 	}).format(value);
 }
 
-function scrollToSection(anchorId: string) {
-	document.getElementById(anchorId)?.scrollIntoView({
-		behavior: "smooth",
-		block: "start",
-	});
-}
-
 export function AppSidebar({
-	activeSection,
 	appState,
 	archive,
 	bridgeStatus,
+	currentPath,
 	isOpeningDataDir,
 	onOpenDataDirectory,
-	onSelectSection,
-	sectionAnchors,
 	syncState,
 }: AppSidebarProps) {
 	const navigationItems: NavigationItem[] = [
 		{
-			id: "overview",
 			label: "Overview",
 			icon: HouseIcon,
 			helpText: "Hero summary and environment state.",
+			to: "/overview",
 		},
 		{
-			id: "services",
 			label: "Services",
 			icon: MonitorIcon,
 			badge: String(appState.services.length),
 			helpText: "Main process and bridge readiness.",
+			to: "/services",
 		},
 		{
-			id: "sync",
 			label: "Sync",
 			icon: ArrowsClockwiseIcon,
 			badge: syncState.activeRun ? "Live" : undefined,
 			helpText: "Desktop-managed capture controls and run history.",
+			to: "/sync",
 		},
 		{
-			id: "archive",
 			label: "Archive",
 			icon: HardDrivesIcon,
 			badge: formatCompactCount(archive.stats.tweetCount),
 			helpText: "Stored tweets, media, and recent rows.",
-		},
-		{
-			id: "roadmap",
-			label: "Roadmap",
-			icon: TargetIcon,
-			helpText: "Planned screens and next milestones.",
+			to: "/archive",
 		},
 	];
 
+	const activeItem =
+		navigationItems.find((item) => item.to === currentPath) ??
+		navigationItems[0];
 	const runtimeSummary = `${appState.runtime} runtime`;
 	const activeRunLabel = syncState.activeRun
 		? `${syncState.activeRun.importedCount} imported`
@@ -130,12 +107,10 @@ export function AppSidebar({
 				<SidebarMenu>
 					<SidebarMenuItem>
 						<SidebarMenuButton
+							render={<Link preload="intent" to="/overview" />}
 							size="lg"
+							isActive={currentPath === "/overview"}
 							tooltip="Overview"
-							onClick={() => {
-								onSelectSection("overview");
-								scrollToSection(sectionAnchors.overview);
-							}}
 						>
 							<HouseIcon />
 							<span className="grid flex-1 text-left leading-tight">
@@ -149,11 +124,6 @@ export function AppSidebar({
 						</SidebarMenuButton>
 					</SidebarMenuItem>
 				</SidebarMenu>
-
-				<div className="border border-sidebar-border bg-sidebar-accent/30 p-3 text-xs text-sidebar-foreground/80 group-data-[collapsible=icon]:hidden">
-					<p className="font-medium text-sidebar-foreground">Bridge status</p>
-					<p className="mt-2 leading-5">{bridgeStatus}</p>
-				</div>
 			</SidebarHeader>
 
 			<SidebarSeparator />
@@ -167,14 +137,11 @@ export function AppSidebar({
 								const Icon = item.icon;
 
 								return (
-									<SidebarMenuItem key={item.id}>
+									<SidebarMenuItem key={item.to}>
 										<SidebarMenuButton
-											isActive={activeSection === item.id}
+											render={<Link preload="intent" to={item.to} />}
+											isActive={currentPath === item.to}
 											tooltip={item.label}
-											onClick={() => {
-												onSelectSection(item.id);
-												scrollToSection(sectionAnchors[item.id]);
-											}}
 										>
 											<Icon />
 											<span>{item.label}</span>
@@ -219,10 +186,7 @@ export function AppSidebar({
 					<SidebarGroupLabel>Section notes</SidebarGroupLabel>
 					<SidebarGroupContent>
 						<div className="border border-dashed border-sidebar-border p-3 text-xs leading-5 text-sidebar-foreground/70 group-data-[collapsible=icon]:hidden">
-							{
-								navigationItems.find((item) => item.id === activeSection)
-									?.helpText
-							}
+							{activeItem.helpText}
 						</div>
 					</SidebarGroupContent>
 				</SidebarGroup>
@@ -248,6 +212,10 @@ export function AppSidebar({
 
 				<div className="flex flex-col gap-1 text-xs opacity-50">
 					<p className="mt-1">Version {appState.appVersion}</p>
+					<p>Runtime: {appState.runtime}</p>
+					<p className="font-medium text-sidebar-foreground">
+						Bridge: {bridgeStatus}
+					</p>
 					<p>{appState.isPackaged ? "Packaged build" : "Development build"}</p>
 				</div>
 			</SidebarFooter>
