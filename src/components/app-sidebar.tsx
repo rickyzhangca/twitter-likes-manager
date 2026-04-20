@@ -124,23 +124,6 @@ export function AppSidebar({
 			</SidebarContent>
 
 			<SidebarFooter>
-				<SidebarMenu>
-					<SidebarMenuItem>
-						<SidebarMenuButton
-							onClick={onOpenDataDirectory}
-							disabled={isOpeningDataDir}
-							tooltip="Open data directory"
-						>
-							<FolderIcon />
-							<span>
-								{isOpeningDataDir
-									? "Opening directory..."
-									: "Open data directory"}
-							</span>
-						</SidebarMenuButton>
-					</SidebarMenuItem>
-				</SidebarMenu>
-
 				<div className="flex flex-col gap-1 text-xs opacity-50">
 					<p className="mt-1">Version {appState.appVersion}</p>
 					<p>Runtime: {appState.runtime}</p>
