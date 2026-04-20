@@ -64,10 +64,6 @@ const nextMilestones = [
 
 const plannedScreens = [
 	{
-		name: "Onboarding",
-		summary: "Explain the sync model, data location, and login requirements.",
-	},
-	{
 		name: "Sync control",
 		summary: "Start, resume, and inspect capture runs with progress updates.",
 	},
@@ -804,15 +800,6 @@ export function App() {
 							</ol>
 						</div>
 					</section>
-
-					<footer className="border border-border bg-card/80 p-4 text-xs leading-6 text-muted-foreground backdrop-blur">
-						Desktop mode exposes Electron, Chrome, and Node versions through the
-						preload bridge. Press{" "}
-						<kbd className="border border-border px-1.5 py-0.5 text-[10px]">
-							d
-						</kbd>{" "}
-						to toggle theme.
-					</footer>
 				</div>
 			</SidebarInset>
 		</SidebarProvider>
