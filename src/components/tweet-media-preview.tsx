@@ -1,5 +1,6 @@
 import MuxVideo from "@mux/mux-video-react";
 import Zoom from "react-medium-image-zoom";
+import { toast } from "sonner";
 import type { ArchiveMedia } from "@/types/desktop";
 import { createDesktopMediaUrl } from "@/types/desktop";
 import "react-medium-image-zoom/dist/styles.css";
@@ -22,12 +23,22 @@ function resolveMediaSource(media: ArchiveMedia) {
 
 async function handleCopyImage(media: ArchiveMedia) {
 	if (!media.localPath || !window.twitterLikesDesktop) return;
-	await window.twitterLikesDesktop.copyImageToClipboard(media.localPath);
+	try {
+		await window.twitterLikesDesktop.copyImageToClipboard(media.localPath);
+		toast.success("Image copied to clipboard");
+	} catch {
+		toast.error("Failed to copy image");
+	}
 }
 
 async function handleRevealInFolder(media: ArchiveMedia) {
 	if (!media.localPath || !window.twitterLikesDesktop) return;
-	await window.twitterLikesDesktop.showItemInFolder(media.localPath);
+	try {
+		await window.twitterLikesDesktop.showItemInFolder(media.localPath);
+		toast.success("Revealed in Finder");
+	} catch {
+		toast.error("Failed to reveal in Finder");
+	}
 }
 
 export function TweetMediaPreview({ media }: { media: ArchiveMedia[] }) {

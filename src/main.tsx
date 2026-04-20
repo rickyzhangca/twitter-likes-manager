@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 
 import "./index.css";
 import { ThemeProvider } from "@/components/theme-provider.tsx";
+import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { router } from "./router";
 
@@ -18,6 +19,7 @@ createRoot(rootElement).render(
 		<ThemeProvider>
 			<TooltipProvider>
 				<RouterProvider router={router} />
+				<Toaster />
 			</TooltipProvider>
 		</ThemeProvider>
 	</StrictMode>,
