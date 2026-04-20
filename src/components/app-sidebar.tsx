@@ -1,7 +1,6 @@
 import {
 	ArrowsClockwiseIcon,
-	FolderIcon,
-	HardDrivesIcon,
+	GearIcon,
 	HouseIcon,
 	type Icon,
 	ListIcon,
@@ -31,8 +30,6 @@ type AppSidebarProps = {
 	archive: ArchiveSnapshot;
 	bridgeStatus: string;
 	currentPath: string;
-	isOpeningDataDir: boolean;
-	onOpenDataDirectory: () => void;
 	syncState: SyncState;
 };
 
@@ -40,7 +37,7 @@ type NavigationItem = {
 	label: string;
 	icon: Icon;
 	badge?: string;
-	to: "/overview" | "/sync" | "/archive" | "/log";
+	to: "/overview" | "/sync" | "/log" | "/settings";
 };
 
 function formatCompactCount(value: number) {
@@ -55,14 +52,13 @@ export function AppSidebar({
 	archive,
 	bridgeStatus,
 	currentPath,
-	isOpeningDataDir,
-	onOpenDataDirectory,
 	syncState,
 }: AppSidebarProps) {
 	const navigationItems: NavigationItem[] = [
 		{
-			label: "Overview",
+			label: "Home",
 			icon: HouseIcon,
+			badge: formatCompactCount(archive.stats.tweetCount),
 			to: "/overview",
 		},
 		{
@@ -72,15 +68,14 @@ export function AppSidebar({
 			to: "/sync",
 		},
 		{
-			label: "Archive",
-			icon: HardDrivesIcon,
-			badge: formatCompactCount(archive.stats.tweetCount),
-			to: "/archive",
-		},
-		{
 			label: "Log",
 			icon: ListIcon,
 			to: "/log",
+		},
+		{
+			label: "Settings",
+			icon: GearIcon,
+			to: "/settings",
 		},
 	];
 

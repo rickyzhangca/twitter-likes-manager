@@ -20,14 +20,7 @@ function AppFrame() {
 	const currentPath = useRouterState({
 		select: (state) => state.location.pathname,
 	});
-	const {
-		appState,
-		archive,
-		bridgeStatus,
-		handleOpenDataDirectory,
-		isOpeningDataDir,
-		syncState,
-	} = useWorkspace();
+	const { appState, archive, bridgeStatus, syncState } = useWorkspace();
 
 	return (
 		<div className="w-full">
@@ -37,8 +30,6 @@ function AppFrame() {
 					archive={archive}
 					bridgeStatus={bridgeStatus}
 					currentPath={currentPath}
-					isOpeningDataDir={isOpeningDataDir}
-					onOpenDataDirectory={handleOpenDataDirectory}
 					syncState={syncState}
 				/>
 				<SidebarInset>

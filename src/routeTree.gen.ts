@@ -10,14 +10,19 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SyncRouteImport } from './routes/sync'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as OverviewRouteImport } from './routes/overview'
 import { Route as LogRouteImport } from './routes/log'
-import { Route as ArchiveRouteImport } from './routes/archive'
 import { Route as IndexRouteImport } from './routes/index'
 
 const SyncRoute = SyncRouteImport.update({
   id: '/sync',
   path: '/sync',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OverviewRoute = OverviewRouteImport.update({
@@ -30,11 +35,6 @@ const LogRoute = LogRouteImport.update({
   path: '/log',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ArchiveRoute = ArchiveRouteImport.update({
-  id: '/archive',
-  path: '/archive',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -43,39 +43,39 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/archive': typeof ArchiveRoute
   '/log': typeof LogRoute
   '/overview': typeof OverviewRoute
+  '/settings': typeof SettingsRoute
   '/sync': typeof SyncRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/archive': typeof ArchiveRoute
   '/log': typeof LogRoute
   '/overview': typeof OverviewRoute
+  '/settings': typeof SettingsRoute
   '/sync': typeof SyncRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/archive': typeof ArchiveRoute
   '/log': typeof LogRoute
   '/overview': typeof OverviewRoute
+  '/settings': typeof SettingsRoute
   '/sync': typeof SyncRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/archive' | '/log' | '/overview' | '/sync'
+  fullPaths: '/' | '/log' | '/overview' | '/settings' | '/sync'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/archive' | '/log' | '/overview' | '/sync'
-  id: '__root__' | '/' | '/archive' | '/log' | '/overview' | '/sync'
+  to: '/' | '/log' | '/overview' | '/settings' | '/sync'
+  id: '__root__' | '/' | '/log' | '/overview' | '/settings' | '/sync'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  ArchiveRoute: typeof ArchiveRoute
   LogRoute: typeof LogRoute
   OverviewRoute: typeof OverviewRoute
+  SettingsRoute: typeof SettingsRoute
   SyncRoute: typeof SyncRoute
 }
 
@@ -86,6 +86,13 @@ declare module '@tanstack/react-router' {
       path: '/sync'
       fullPath: '/sync'
       preLoaderRoute: typeof SyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/overview': {
@@ -102,13 +109,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LogRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/archive': {
-      id: '/archive'
-      path: '/archive'
-      fullPath: '/archive'
-      preLoaderRoute: typeof ArchiveRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/': {
       id: '/'
       path: '/'
@@ -121,9 +121,9 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  ArchiveRoute: ArchiveRoute,
   LogRoute: LogRoute,
   OverviewRoute: OverviewRoute,
+  SettingsRoute: SettingsRoute,
   SyncRoute: SyncRoute,
 }
 export const routeTree = rootRouteImport
