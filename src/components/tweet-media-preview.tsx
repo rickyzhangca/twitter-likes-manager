@@ -3,7 +3,6 @@ import Zoom from "react-medium-image-zoom";
 import type { ArchiveMedia } from "@/types/desktop";
 import { createDesktopMediaUrl } from "@/types/desktop";
 import "react-medium-image-zoom/dist/styles.css";
-import { cn } from "@/lib/utils";
 import {
 	ContextMenu,
 	ContextMenuContent,
@@ -11,6 +10,7 @@ import {
 	ContextMenuItem,
 	ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { cn } from "@/lib/utils";
 
 function resolveMediaSource(media: ArchiveMedia) {
 	if (media.localPath && window.twitterLikesDesktop) {
@@ -113,14 +113,14 @@ export function TweetMediaPreview({ media }: { media: ArchiveMedia[] }) {
 						<ContextMenuContent>
 							<ContextMenuGroup>
 								<ContextMenuItem
-									disabled={!item.localPath}
-									onSelect={() => handleCopyImage(item)}
+									disabled={!item.localPath || !window.twitterLikesDesktop}
+									onClick={() => handleCopyImage(item)}
 								>
 									Copy Image
 								</ContextMenuItem>
 								<ContextMenuItem
-									disabled={!item.localPath}
-									onSelect={() => handleRevealInFolder(item)}
+									disabled={!item.localPath || !window.twitterLikesDesktop}
+									onClick={() => handleRevealInFolder(item)}
 								>
 									Reveal in Finder
 								</ContextMenuItem>
