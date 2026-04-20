@@ -260,8 +260,7 @@ export function AppSidebar({
 					</SidebarMenuItem>
 				</SidebarMenu>
 
-				<div className="border border-sidebar-border bg-sidebar-accent/20 p-3 text-[11px] leading-5 text-sidebar-foreground/70 group-data-[collapsible=icon]:hidden">
-					<p className="font-medium text-sidebar-foreground">Environment</p>
+				<div className="flex flex-col gap-1 text-xs opacity-50">
 					<p className="mt-1">Version {appState.appVersion}</p>
 					<p>{appState.isPackaged ? "Packaged build" : "Development build"}</p>
 				</div>

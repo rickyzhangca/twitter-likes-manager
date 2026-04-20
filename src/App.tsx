@@ -416,23 +416,6 @@ export function App() {
 					>
 						<div className="border border-border bg-card/80 p-6 backdrop-blur lg:p-8">
 							<div className="space-y-5">
-								<div className="space-y-3">
-									<p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
-										MVP foundation
-									</p>
-									<h1 className="max-w-3xl text-3xl leading-tight font-medium text-balance sm:text-4xl lg:text-5xl">
-										Local-first archive for your liked tweets, built as a
-										desktop app.
-									</h1>
-									<p className="max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">
-										The app now owns a local archive and a desktop-managed sync
-										loop. Starting a sync opens a persistent Playwright profile,
-										waits for an authenticated X session when needed, and hands
-										off to the real capture boundary that the next slice will
-										deepen.
-									</p>
-								</div>
-
 								<div className="flex flex-wrap gap-3">
 									<Button
 										onClick={handleOpenDataDirectory}
@@ -542,19 +525,9 @@ export function App() {
 						>
 							<div className="border border-border bg-card p-6">
 								<div className="flex items-start justify-between gap-4">
-									<div>
-										<p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
-											Sync control
-										</p>
-										<h2 className="mt-2 text-xl font-medium text-foreground">
-											Desktop-managed job orchestration
-										</h2>
-										<p className="mt-3 max-w-xl text-sm leading-6 text-muted-foreground">
-											Set a per-run import cap before starting sync. The worker
-											will keep scrolling and collecting Likes until it reaches
-											the limit or the timeline stops yielding more results.
-										</p>
-									</div>
+									<h2 className="mt-2 text-xl font-medium text-foreground">
+										Desktop-managed job orchestration
+									</h2>
 									<Button
 										onClick={handleStartSync}
 										disabled={!syncState.canStart || isStartingSync}
@@ -591,9 +564,7 @@ export function App() {
 										</label>
 										<p className="max-w-xl text-xs leading-6 text-muted-foreground">
 											Allowed range: 1 to {maxSyncLimit}. Default:{" "}
-											{defaultSyncLimit}. Use a smaller cap when you want a
-											quick checkpoint instead of pulling a large Likes history
-											in one run.
+											{defaultSyncLimit}.
 										</p>
 									</div>
 								</div>
