@@ -22,16 +22,8 @@ function ArchivePage() {
 	} = useWorkspace();
 
 	return (
-		<div className="border border-border bg-card p-6">
+		<>
 			<div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-				<div>
-					<p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
-						Archive viewer
-					</p>
-					<p className="mt-2 text-sm leading-6 text-muted-foreground">
-						Search the local archive by tweet text, username, or display name.
-					</p>
-				</div>
 				<label
 					htmlFor={archiveSearchInputId}
 					className="grid gap-2 text-sm text-foreground lg:w-80"
@@ -78,10 +70,7 @@ function ArchivePage() {
 			) : (
 				<div className="mt-5 grid gap-4">
 					{archive.tweets.map((tweet) => (
-						<article
-							key={tweet.id}
-							className={`border p-4 ${stateTone(tweet)}`}
-						>
+						<article key={tweet.id} className={`border-b ${stateTone(tweet)}`}>
 							<div className="flex items-center justify-between gap-4 text-xs uppercase tracking-[0.2em]">
 								<span>@{tweet.author.username}</span>
 								<span>{tweet.state}</span>
@@ -120,6 +109,6 @@ function ArchivePage() {
 					))}
 				</div>
 			)}
-		</div>
+		</>
 	);
 }

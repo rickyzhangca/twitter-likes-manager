@@ -128,7 +128,7 @@ export function formatDate(isoString: string | null) {
 
 export function stateTone(tweet: ArchiveTweetPreview) {
 	if (tweet.state === "available") {
-		return "border-primary/30 bg-primary/8 text-foreground";
+		return "border-primary/30 text-foreground";
 	}
 
 	if (tweet.state === "planned") {
@@ -140,7 +140,7 @@ export function stateTone(tweet: ArchiveTweetPreview) {
 
 export function syncTone(run: SyncRun) {
 	if (run.status === "completed") {
-		return "border-primary/30 bg-primary/8 text-foreground";
+		return "border-primary/30 text-foreground";
 	}
 
 	if (run.status === "failed") {
@@ -152,7 +152,7 @@ export function syncTone(run: SyncRun) {
 
 export function serviceTone(service: DesktopService) {
 	if (service.status === "ready") {
-		return "border-primary/40 bg-primary/8 text-foreground";
+		return "border-primary/40 text-foreground";
 	}
 
 	if (service.status === "blocked") {
