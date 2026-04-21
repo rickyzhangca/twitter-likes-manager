@@ -113,21 +113,33 @@ type WorkspaceContextValue = {
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
 
 function normalizeSyncLimit(value: string) {
-	const parsedValue = Number.parseInt(value, 10);
+	const trimmed = value.trim();
 
-	if (!Number.isFinite(parsedValue)) {
+	if (trimmed === "") {
+		return Infinity;
+	}
+
+	const parsedValue = Number.parseInt(trimmed, 10);
+
+	if (!Number.isFinite(parsedValue) || parsedValue < 1) {
 		return defaultSyncLimit;
 	}
 
-	return Math.min(maxSyncLimit, Math.max(1, parsedValue));
+	return Math.min(maxSyncLimit, parsedValue);
 }
 
 function loadStoredSyncLimit() {
 	const storedValue = window.localStorage.getItem(syncLimitStorageKey);
 
-	return storedValue
-		? String(normalizeSyncLimit(storedValue))
-		: String(defaultSyncLimit);
+	if (!storedValue) {
+		return String(defaultSyncLimit);
+	}
+
+	if (storedValue === "unlimited") {
+		return "";
+	}
+
+	return String(normalizeSyncLimit(storedValue));
 }
 
 export function formatDate(isoString: string | null) {
@@ -352,18 +364,21 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 		setIsStartingSync(true);
 
 		try {
+			const normalizedMaxTweets = normalizeSyncLimit(syncLimitInput);
 			const options: SyncStartOptions = {
-				maxTweets: normalizeSyncLimit(syncLimitInput),
+				maxTweets: normalizedMaxTweets,
 			};
 			const nextSyncState = await window.twitterLikesDesktop.startSync(options);
 			setSyncState(nextSyncState);
 			window.localStorage.setItem(
 				syncLimitStorageKey,
-				String(options.maxTweets),
+				normalizedMaxTweets === Infinity ? "unlimited" : String(normalizedMaxTweets),
 			);
-			setSyncLimitInput(String(options.maxTweets));
+			setSyncLimitInput(normalizedMaxTweets === Infinity ? "" : String(normalizedMaxTweets));
 			setBridgeStatus(
-				`Started a desktop-managed sync run with a ${options.maxTweets}-tweet limit.`,
+				normalizedMaxTweets === Infinity
+					? "Started a desktop-managed sync run with no limit."
+					: `Started a desktop-managed sync run with a ${options.maxTweets}-tweet limit.`,
 			);
 		} catch (error) {
 			const message =

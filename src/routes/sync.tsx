@@ -3,7 +3,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import {
-	defaultSyncLimit,
 	formatDate,
 	maxSyncLimit,
 	useWorkspace,
@@ -94,6 +93,7 @@ function SyncPage() {
 						max={maxSyncLimit}
 						step={1}
 						inputMode="numeric"
+						placeholder="Unlimited"
 						value={syncLimitInput}
 						disabled={
 							Boolean(syncState.activeRun) ||
@@ -106,7 +106,7 @@ function SyncPage() {
 					/>
 				</label>
 				<p className="max-w-xl text-sm leading-6 text-muted-foreground">
-					Allowed range: 1 to {maxSyncLimit}. Default: {defaultSyncLimit}.
+					Leave empty for unlimited. Otherwise, allowed range: 1 to {maxSyncLimit}.
 				</p>
 			</div>
 

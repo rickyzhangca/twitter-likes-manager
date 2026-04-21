@@ -63,7 +63,9 @@ export class SyncService {
 				id: randomUUID(),
 				startedAt,
 				phase: "launching-profile",
-				message: `Preparing the Playwright capture session for up to ${normalizedOptions.maxTweets} liked tweets.`,
+				message: normalizedOptions.maxTweets === Infinity
+					? "Preparing the Playwright capture session for all liked tweets."
+					: `Preparing the Playwright capture session for up to ${normalizedOptions.maxTweets} liked tweets.`,
 			}),
 		});
 		this.archiveStore.createSyncCheckpoint(run.id, normalizedOptions.maxTweets);
@@ -403,7 +405,8 @@ function formatCompletionMessage(
 	},
 	maxTweets: number,
 ) {
-	const baseMessage = `Imported ${importResult.importedCount} liked tweets (limit ${maxTweets}) from ${importResult.likesResponseCount} captured Likes response${importResult.likesResponseCount === 1 ? "" : "s"}.`;
+	const limitLabel = maxTweets === Infinity ? "unlimited" : String(maxTweets);
+	const baseMessage = `Imported ${importResult.importedCount} liked tweets (limit ${limitLabel}) from ${importResult.likesResponseCount} captured Likes response${importResult.likesResponseCount === 1 ? "" : "s"}.`;
 
 	if (importResult.mediaCount === 0) {
 		return `${baseMessage} No media attachments were found in this batch.`;
@@ -438,7 +441,8 @@ function formatResumeMessage(phase: SyncRun["phase"], run: SyncRun) {
 }
 
 function formatResumedCompletionMessage(run: SyncRun, maxTweets: number) {
-	const baseMessage = `Imported ${run.importedCount} liked tweets (limit ${maxTweets}).`;
+	const limitLabel = maxTweets === Infinity ? "unlimited" : String(maxTweets);
+	const baseMessage = `Imported ${run.importedCount} liked tweets (limit ${limitLabel}).`;
 
 	if (!run.downloadProgress) {
 		return baseMessage;
@@ -453,6 +457,11 @@ function formatResumedCompletionMessage(run: SyncRun, maxTweets: number) {
 
 function normalizeSyncStartOptions(options?: SyncStartOptions) {
 	const requestedLimit = options?.maxTweets;
+
+	if (requestedLimit === Infinity) {
+		return { maxTweets: Infinity };
+	}
+
 	const maxTweets =
 		typeof requestedLimit === "number" && Number.isFinite(requestedLimit)
 			? Math.min(1000, Math.max(1, Math.trunc(requestedLimit)))

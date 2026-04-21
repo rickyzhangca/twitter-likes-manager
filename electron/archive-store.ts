@@ -750,6 +750,7 @@ export class ArchiveStore {
 
   createSyncCheckpoint(runId: string, maxTweets: number) {
     const now = new Date().toISOString()
+    const storedMaxTweets = maxTweets === Infinity ? -1 : maxTweets
 
     this.database
       .prepare(
@@ -769,7 +770,7 @@ export class ArchiveStore {
             updated_at = excluded.updated_at
         `
       )
-      .run(runId, maxTweets, now)
+      .run(runId, storedMaxTweets, now)
 
     return this.getSyncCheckpoint(runId)
   }
@@ -831,7 +832,9 @@ export class ArchiveStore {
         `
       )
       .run(
-        updates.maxTweets ?? currentCheckpoint.maxTweets,
+        (updates.maxTweets ?? currentCheckpoint.maxTweets) === Infinity
+          ? -1
+          : (updates.maxTweets ?? currentCheckpoint.maxTweets),
         updates.captureArtifactPath === undefined
           ? currentCheckpoint.captureArtifactPath
           : updates.captureArtifactPath,
@@ -1454,7 +1457,7 @@ export class ArchiveStore {
   private mapSyncCheckpoint(row: SyncCheckpointRow): SyncCheckpoint {
     return {
       runId: row.run_id,
-      maxTweets: row.max_tweets,
+      maxTweets: row.max_tweets === -1 ? Infinity : row.max_tweets,
       captureArtifactPath: row.capture_artifact_path,
       captureCompletedAt: row.capture_completed_at,
       importCompletedAt: row.import_completed_at,

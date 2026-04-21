@@ -96,7 +96,9 @@ export class PlaywrightSync {
 
 		await onProgress({
 			phase: "capturing-likes",
-			message: `Session detected. Capturing up to ${options.maxTweets} liked tweets from the Playwright profile.`,
+			message: options.maxTweets === Infinity
+				? "Session detected. Capturing all liked tweets from the Playwright profile."
+				: `Session detected. Capturing up to ${options.maxTweets} liked tweets from the Playwright profile.`,
 			scannedCount: 0,
 			importedCount: 0,
 		});
@@ -106,7 +108,9 @@ export class PlaywrightSync {
 		const result = {
 			phase: "completed" as const,
 			message: probeResult.artifactPath
-				? `Saved ${probeResult.capturedResponseCount} raw Likes responses for up to ${options.maxTweets} tweets to ${probeResult.artifactPath}.`
+				? options.maxTweets === Infinity
+					? `Saved ${probeResult.capturedResponseCount} raw Likes responses for all tweets to ${probeResult.artifactPath}.`
+					: `Saved ${probeResult.capturedResponseCount} raw Likes responses for up to ${options.maxTweets} tweets to ${probeResult.artifactPath}.`
 				: "Login session is ready, but no raw Likes responses were captured yet.",
 			scannedCount: probeResult.visibleTweetCount,
 			importedCount: 0,
