@@ -12,14 +12,7 @@ import { TweetMediaPreview } from "./tweet-media-preview";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
-import {
-	Popover,
-	PopoverContent,
-	PopoverDescription,
-	PopoverHeader,
-	PopoverTitle,
-	PopoverTrigger,
-} from "./ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 
 function formatTweetDate(isoString: string | null) {
 	if (!isoString) return "not available";
@@ -110,21 +103,16 @@ function TweetTagEditor({ tweet }: { tweet: ArchiveTweetPreview }) {
 		<Popover open={isOpen} onOpenChange={handleOpenChange}>
 			<PopoverTrigger
 				render={
-					<Button variant="outline" size="icon-xs" aria-label="Manage tags" />
+					<Badge variant="outline" onClick={handleAddNewTag}>
+						<PlusIcon />
+					</Badge>
 				}
 			>
 				<TagIcon />
 			</PopoverTrigger>
 			<PopoverContent align="end" className="w-80">
-				<PopoverHeader>
-					<PopoverTitle>Manage tags</PopoverTitle>
-					<PopoverDescription>
-						Click any tag to apply the change immediately, or create a new one.
-					</PopoverDescription>
-				</PopoverHeader>
-
 				<div className="flex flex-col gap-3">
-					<div className="flex flex-wrap gap-2">
+					<div className="flex flex-wrap gap-1">
 						{availableTags.length > 0 ? (
 							availableTags.map((tagName) => {
 								const isSelected = normalizedDraftTags.includes(tagName);
@@ -150,7 +138,7 @@ function TweetTagEditor({ tweet }: { tweet: ArchiveTweetPreview }) {
 						)}
 					</div>
 
-					<div className="flex gap-2">
+					<div className="flex gap-2 items-center">
 						<Input
 							value={newTagInput}
 							onChange={(event) => setNewTagInput(event.target.value)}
@@ -167,11 +155,9 @@ function TweetTagEditor({ tweet }: { tweet: ArchiveTweetPreview }) {
 						<Button
 							type="button"
 							variant="outline"
-							size="sm"
 							onClick={handleAddNewTag}
 							disabled={!canAddNewTag}
 						>
-							<PlusIcon data-icon="inline-start" />
 							Add
 						</Button>
 					</div>
@@ -210,7 +196,7 @@ export const Tweet = ({ tweet }: { tweet: ArchiveTweetPreview }) => {
 			<div className="flex flex-col gap-4 pl-8">
 				<p className="text-sm">{tweet.text}</p>
 				{tweet.tags.length > 0 || canEditTags ? (
-					<div className="flex flex-wrap items-center gap-2">
+					<div className="flex flex-wrap items-center gap-1">
 						{tweet.tags.map((tag) => (
 							<Badge key={tag} variant="outline">
 								{tag}

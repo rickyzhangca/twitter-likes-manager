@@ -203,32 +203,27 @@ function Home() {
 				</label>
 
 				{archive.tags.length > 0 ? (
-					<div className="flex flex-col gap-2">
-						<p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-							Tag filters
-						</p>
-						<div className="flex flex-wrap gap-2">
-							{archive.tags.map((tag) => {
-								const isSelected = archiveTagFilters.includes(tag.name);
+					<div className="flex flex-wrap gap-1">
+						{archive.tags.map((tag) => {
+							const isSelected = archiveTagFilters.includes(tag.name);
 
-								return (
-									<button
-										key={tag.name}
-										type="button"
-										onClick={() => handleToggleTagFilter(tag.name)}
-										className="cursor-pointer"
+							return (
+								<button
+									key={tag.name}
+									type="button"
+									onClick={() => handleToggleTagFilter(tag.name)}
+									className="cursor-pointer"
+								>
+									<Badge
+										variant={isSelected ? "default" : "outline"}
+										className="gap-2"
 									>
-										<Badge
-											variant={isSelected ? "default" : "outline"}
-											className="gap-1.5"
-										>
-											<span>{tag.name}</span>
-											<span className="opacity-60">{tag.tweetCount}</span>
-										</Badge>
-									</button>
-								);
-							})}
-						</div>
+										<span>{tag.name}</span>
+										<span className="opacity-60">{tag.tweetCount}</span>
+									</Badge>
+								</button>
+							);
+						})}
 					</div>
 				) : null}
 			</div>
@@ -249,8 +244,8 @@ function Home() {
 				<div className="mt-5 border border-border bg-background/80 p-4">
 					<p className="text-sm text-muted-foreground">
 						{deferredArchiveSearch
-							? `No archived tweets matched "${deferredArchiveSearch}".`
-							: "No archive rows yet. Start a sync to capture Likes from X into the local archive."}
+							? `No archived tweets matched "${deferredArchiveSearch}"`
+							: "No archive rows yet"}
 					</p>
 				</div>
 			) : (
