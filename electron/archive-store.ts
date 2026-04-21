@@ -131,88 +131,6 @@ type MediaDownloadJob = {
   downloadedAt: string | null
 }
 
-const seededAuthors = [
-  {
-    id: "author-1",
-    username: "localprototype",
-    displayName: "Local Prototype",
-    avatarUrl: null,
-  },
-  {
-    id: "author-2",
-    username: "archivenotes",
-    displayName: "Archive Notes",
-    avatarUrl: null,
-  },
-  {
-    id: "author-3",
-    username: "captureloop",
-    displayName: "Capture Loop",
-    avatarUrl: null,
-  },
-] as const
-
-const seededTweets = [
-  {
-    id: "tweet-1",
-    authorId: "author-1",
-    url: "https://x.com/localprototype/status/1000000000000000001",
-    text: "First seeded like in the local archive. This row proves the renderer is reading from app-owned storage instead of a hardcoded screen.",
-    importedAt: "2026-04-18T14:23:00.000Z",
-    createdAt: "2026-04-18T13:58:00.000Z",
-    state: "available",
-    likeCount: 42,
-    replyCount: 4,
-  },
-  {
-    id: "tweet-2",
-    authorId: "author-2",
-    url: "https://x.com/archivenotes/status/1000000000000000002",
-    text: "Storage comes before capture. Once the DB contract is stable, the Playwright worker only has to normalize into it.",
-    importedAt: "2026-04-17T09:10:00.000Z",
-    createdAt: "2026-04-17T08:41:00.000Z",
-    state: "available",
-    likeCount: 18,
-    replyCount: 2,
-  },
-  {
-    id: "tweet-3",
-    authorId: "author-3",
-    url: "https://x.com/captureloop/status/1000000000000000003",
-    text: "The next slice can replace this seeded row with real liked tweets captured from the signed-in web client.",
-    importedAt: "2026-04-16T22:05:00.000Z",
-    createdAt: "2026-04-16T21:48:00.000Z",
-    state: "planned",
-    likeCount: 7,
-    replyCount: 1,
-  },
-] as const
-
-const seededMedia = [
-  {
-    id: "media-1",
-    tweetId: "tweet-1",
-    kind: "photo",
-    remoteUrl: "https://example.com/media/seeded-like-1.jpg",
-    localPath: null,
-  },
-  {
-    id: "media-2",
-    tweetId: "tweet-3",
-    kind: "photo",
-    remoteUrl: "https://example.com/media/seeded-like-2.jpg",
-    localPath: null,
-  },
-] as const
-
-const starterTags = ["ai", "design", "键政"] as const
-
-const starterTagAssignments = [
-  { tweetId: "tweet-1", tagName: "ai" },
-  { tweetId: "tweet-2", tagName: "design" },
-  { tweetId: "tweet-3", tagName: "键政" },
-] as const
-
 export class ArchiveStore {
   readonly dataDirectory: string
   readonly databasePath: string
@@ -234,8 +152,6 @@ export class ArchiveStore {
 
     this.ensureSchema()
     this.migrateSchema()
-    this.seedIfEmpty()
-    this.seedStarterTags()
   }
 
   getAppState(): Pick<DesktopAppState, "dataDirectory" | "services"> {
@@ -1368,86 +1284,6 @@ export class ArchiveStore {
     `)
   }
 
-  private seedIfEmpty() {
-    const row = this.database
-      .prepare("SELECT COUNT(*) AS count FROM tweets")
-      .get() as { count: number }
-
-    if (row.count > 0) {
-      return
-    }
-
-    const insertAuthor = this.database.prepare(
-      `
-        INSERT INTO authors (id, username, display_name, avatar_url)
-        VALUES (?, ?, ?, ?)
-      `
-    )
-    const insertTweet = this.database.prepare(
-      `
-        INSERT INTO tweets (
-          id,
-          author_id,
-          url,
-          text,
-          imported_at,
-          created_at,
-          state,
-          like_count,
-          reply_count
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `
-    )
-    const insertMedia = this.database.prepare(
-      `
-        INSERT INTO media (id, tweet_id, kind, remote_url, local_path)
-        VALUES (?, ?, ?, ?, ?)
-      `
-    )
-
-    this.database.exec("BEGIN")
-
-    try {
-      for (const author of seededAuthors) {
-        insertAuthor.run(
-          author.id,
-          author.username,
-          author.displayName,
-          author.avatarUrl
-        )
-      }
-
-      for (const tweet of seededTweets) {
-        insertTweet.run(
-          tweet.id,
-          tweet.authorId,
-          tweet.url,
-          tweet.text,
-          tweet.importedAt,
-          tweet.createdAt,
-          tweet.state,
-          tweet.likeCount,
-          tweet.replyCount
-        )
-      }
-
-      for (const media of seededMedia) {
-        insertMedia.run(
-          media.id,
-          media.tweetId,
-          media.kind,
-          media.remoteUrl,
-          media.localPath
-        )
-      }
-
-      this.database.exec("COMMIT")
-    } catch (error) {
-      this.database.exec("ROLLBACK")
-      throw error
-    }
-  }
-
   private removeSeedData() {
     this.database.exec(`
       DELETE FROM media WHERE id LIKE 'media-%';
@@ -1486,45 +1322,6 @@ export class ArchiveStore {
     }
 
     return tagsByTweetId
-  }
-
-  private seedStarterTags() {
-    const insertTag = this.database.prepare(
-      `
-        INSERT INTO tags (name)
-        VALUES (?)
-        ON CONFLICT(name) DO NOTHING
-      `
-    )
-    const upsertTweetTag = this.database.prepare(
-      `
-        INSERT INTO tweet_tags (tweet_id, tag_name)
-        SELECT ?, ?
-        WHERE EXISTS (SELECT 1 FROM tweets WHERE id = ?)
-        ON CONFLICT(tweet_id, tag_name) DO NOTHING
-      `
-    )
-
-    this.database.exec("BEGIN")
-
-    try {
-      for (const tagName of starterTags) {
-        insertTag.run(tagName)
-      }
-
-      for (const assignment of starterTagAssignments) {
-        upsertTweetTag.run(
-          assignment.tweetId,
-          assignment.tagName,
-          assignment.tweetId
-        )
-      }
-
-      this.database.exec("COMMIT")
-    } catch (error) {
-      this.database.exec("ROLLBACK")
-      throw error
-    }
   }
 
   private mapSyncRun(row: SyncRunRow): SyncRun {
