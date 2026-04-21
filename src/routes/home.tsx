@@ -186,13 +186,18 @@ function Home() {
 	}
 
 	return (
-		<div className="flex flex-col max-w-150 mx-auto">
+		<div className="flex flex-col gap-8 max-w-150 mx-auto">
+			<p className="text-xl">
+				{deferredArchiveSearch
+					? `Showing ${archive.tweets.length} of ${archive.stats.filteredTweetCount} match${archive.stats.filteredTweetCount === 1 ? "" : "es"} for "${deferredArchiveSearch}"${archiveTagFilters.length > 0 ? ` with ${archiveTagFilters.join(" + ")}.` : "."}`
+					: `Showing the most recent ${archive.tweets.length} of ${archive.stats.filteredTweetCount} archived tweet${archive.stats.filteredTweetCount === 1 ? "" : "s"}.`}
+			</p>
+
 			<div className="flex flex-col gap-3">
 				<label
 					htmlFor={archiveSearchInputId}
 					className="grid gap-2 text-sm text-foreground lg:w-80"
 				>
-					<span className="text-sm">Search local archive</span>
 					<Input
 						id={archiveSearchInputId}
 						value={archiveSearchInput}
@@ -202,7 +207,7 @@ function Home() {
 					/>
 				</label>
 
-				{archive.tags.length > 0 ? (
+				{archive.tags.length > 0 && (
 					<div className="flex flex-wrap gap-1">
 						{archive.tags.map((tag) => {
 							const isSelected = archiveTagFilters.includes(tag.name);
@@ -225,23 +230,17 @@ function Home() {
 							);
 						})}
 					</div>
-				) : null}
+				)}
 			</div>
 
-			<p className="text-sm">
-				{deferredArchiveSearch
-					? `Showing ${archive.tweets.length} of ${archive.stats.filteredTweetCount} match${archive.stats.filteredTweetCount === 1 ? "" : "es"} for "${deferredArchiveSearch}"${archiveTagFilters.length > 0 ? ` with ${archiveTagFilters.join(" + ")}.` : "."}`
-					: `Showing the most recent ${archive.tweets.length} of ${archive.stats.filteredTweetCount} archived tweet${archive.stats.filteredTweetCount === 1 ? "" : "s"}.`}
-			</p>
-
 			{isLoadingArchive && archive.tweets.length === 0 ? (
-				<p className="mt-5 text-sm text-muted-foreground">
+				<p className="text-sm text-muted-foreground">
 					{deferredArchiveSearch
 						? "Searching archive..."
 						: "Loading archive..."}
 				</p>
 			) : archive.tweets.length === 0 ? (
-				<div className="mt-5 border border-border bg-background/80 p-4">
+				<div className="border border-border bg-background/80 p-4">
 					<p className="text-sm text-muted-foreground">
 						{deferredArchiveSearch
 							? `No archived tweets matched "${deferredArchiveSearch}"`
@@ -249,13 +248,13 @@ function Home() {
 					</p>
 				</div>
 			) : (
-				<>
+				<div className="flex flex-col border border-border">
 					<TweetPagination
 						currentPage={archivePage}
 						totalPages={archiveTotalPages}
 						onPageChange={handlePageChange}
 					/>
-					<div className="flex flex-col border border-border">
+					<div className="flex flex-col border-t border-border">
 						{archive.tweets.map((tweet) => (
 							<Tweet key={tweet.id} tweet={tweet} />
 						))}
@@ -265,7 +264,7 @@ function Home() {
 						totalPages={archiveTotalPages}
 						onPageChange={handlePageChange}
 					/>
-				</>
+				</div>
 			)}
 		</div>
 	);
