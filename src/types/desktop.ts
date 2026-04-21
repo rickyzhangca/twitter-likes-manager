@@ -2,6 +2,7 @@ export const desktopChannels = {
   getAppState: "desktop:get-app-state",
   getArchiveSnapshot: "desktop:get-archive-snapshot",
   saveTweetTags: "desktop:save-tweet-tags",
+  deleteTag: "desktop:delete-tag",
   getSyncState: "desktop:get-sync-state",
   startSync: "desktop:start-sync",
   resumeSync: "desktop:resume-sync",
@@ -153,6 +154,7 @@ export type DesktopBridge = {
     options?: ArchiveQueryOptions,
   ) => Promise<ArchiveSnapshot>
   saveTweetTags: (tweetId: string, tagNames: string[]) => Promise<void>
+  deleteTag: (tagName: string) => Promise<void>
   getSyncState: () => Promise<SyncState>
   startSync: (options: SyncStartOptions) => Promise<SyncState>
   resumeSync: () => Promise<SyncState>

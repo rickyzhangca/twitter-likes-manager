@@ -94,6 +94,16 @@ function registerIpcHandlers() {
 			archiveStore.saveTweetTags(tweetId, tagNames);
 		},
 	);
+	ipcMain.handle(
+		desktopChannels.deleteTag,
+		(_event, tagName: string) => {
+			if (!archiveStore) {
+				throw new Error("Archive store is not initialized");
+			}
+
+			archiveStore.deleteTag(tagName);
+		},
+	);
 	ipcMain.handle(desktopChannels.getSyncState, () => {
 		if (!syncService) {
 			throw new Error("Sync service is not initialized");

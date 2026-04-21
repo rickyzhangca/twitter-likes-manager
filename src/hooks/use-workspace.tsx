@@ -94,6 +94,7 @@ type WorkspaceContextValue = {
 	handleOpenDataDirectory: () => Promise<void>;
 	handleResumeSync: () => Promise<void>;
 	handleSaveTweetTags: (tweetId: string, tagNames: string[]) => Promise<void>;
+	handleDeleteTag: (tagName: string) => Promise<void>;
 	handleSetArchivePage: (page: number) => void;
 	handleStartSync: () => Promise<void>;
 	handleRetryFailedMediaForRun: (runId: string) => Promise<void>;
@@ -477,6 +478,52 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 		}
 	}
 
+	async function handleDeleteTag(tagName: string) {
+		if (!window.twitterLikesDesktop) {
+			setBridgeStatus("Tag deletion is only available in the Electron shell.");
+			return;
+		}
+
+		setIsLoadingArchive(true);
+
+		try {
+			await window.twitterLikesDesktop.deleteTag(tagName);
+
+			const nextTagFilters = archiveTagFilters.filter(
+				(t) => t !== tagName,
+			);
+
+			let nextArchive = await loadDesktopArchiveSnapshot({
+				page: archivePage,
+				search: deferredArchiveSearch,
+				tagFilters: nextTagFilters,
+			});
+			const nextArchiveTotalPages =
+				Math.ceil(nextArchive.stats.filteredTweetCount / archivePageSize) || 1;
+
+			if (archivePage > nextArchiveTotalPages) {
+				setArchivePage(nextArchiveTotalPages);
+				nextArchive = await loadDesktopArchiveSnapshot({
+					page: nextArchiveTotalPages,
+					search: deferredArchiveSearch,
+					tagFilters: nextTagFilters,
+				});
+			}
+
+			startTransition(() => {
+				setArchive(nextArchive);
+			});
+			setArchiveTagFiltersState(nextTagFilters);
+			setBridgeStatus(`Deleted tag "${tagName}".`);
+		} catch (error) {
+			const message =
+				error instanceof Error ? error.message : "Could not delete tag";
+			setBridgeStatus(`Delete tag failed: ${message}`);
+		} finally {
+			setIsLoadingArchive(false);
+		}
+	}
+
 	function setArchiveSearchInput(value: string) {
 		if (window.twitterLikesDesktop) {
 			setIsLoadingArchive(true);
@@ -520,6 +567,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 				archiveTotalPages,
 				bridgeStatus,
 				deferredArchiveSearch,
+				handleDeleteTag,
 				handleOpenDataDirectory,
 				handleResumeSync,
 				handleSaveTweetTags,

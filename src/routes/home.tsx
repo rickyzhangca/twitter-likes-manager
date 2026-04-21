@@ -5,9 +5,26 @@ import {
 	useNavigate,
 	useSearch,
 } from "@tanstack/react-router";
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Tweet } from "@/components/tweet";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
+import {
+	ContextMenu,
+	ContextMenuContent,
+	ContextMenuGroup,
+	ContextMenuItem,
+	ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import { Input } from "@/components/ui/input";
 import {
 	Pagination,
@@ -122,11 +139,14 @@ function Home() {
 		archiveTagFilters,
 		archiveTotalPages,
 		deferredArchiveSearch,
+		handleDeleteTag,
 		handleSetArchivePage,
 		isLoadingArchive,
 		setArchiveSearchInput,
 		setArchiveTagFilters,
 	} = useWorkspace();
+
+	const [tagToDelete, setTagToDelete] = useState<string | null>(null);
 
 	useEffect(() => {
 		if (urlPage >= 1 && urlPage !== archivePage) {
@@ -213,24 +233,65 @@ function Home() {
 							const isSelected = archiveTagFilters.includes(tag.name);
 
 							return (
-								<button
-									key={tag.name}
-									type="button"
-									onClick={() => handleToggleTagFilter(tag.name)}
-									className="cursor-pointer"
-								>
-									<Badge
-										variant={isSelected ? "default" : "outline"}
-										className="gap-2"
+								<ContextMenu key={tag.name}>
+									<ContextMenuTrigger
+										className="cursor-pointer"
+										onClick={() => handleToggleTagFilter(tag.name)}
 									>
-										<span>{tag.name}</span>
-										<span className="opacity-60">{tag.tweetCount}</span>
-									</Badge>
-								</button>
+										<Badge
+											variant={isSelected ? "default" : "outline"}
+											className="gap-2"
+										>
+											<span>{tag.name}</span>
+											<span className="opacity-60">{tag.tweetCount}</span>
+										</Badge>
+									</ContextMenuTrigger>
+									<ContextMenuContent>
+										<ContextMenuGroup>
+											<ContextMenuItem
+												variant="destructive"
+												onClick={() => setTagToDelete(tag.name)}
+											>
+												Delete tag
+											</ContextMenuItem>
+										</ContextMenuGroup>
+									</ContextMenuContent>
+								</ContextMenu>
 							);
 						})}
 					</div>
 				)}
+
+				<AlertDialog
+					open={tagToDelete !== null}
+					onOpenChange={(open) => {
+						if (!open) setTagToDelete(null);
+					}}
+				>
+					<AlertDialogContent>
+						<AlertDialogHeader>
+							<AlertDialogTitle>Delete tag</AlertDialogTitle>
+							<AlertDialogDescription>
+								Remove &quot;{tagToDelete}&quot; from all tweets and delete it. This
+								cannot be undone.
+							</AlertDialogDescription>
+						</AlertDialogHeader>
+						<AlertDialogFooter>
+							<AlertDialogCancel>Cancel</AlertDialogCancel>
+							<AlertDialogAction
+								variant="destructive"
+								onClick={() => {
+									if (tagToDelete) {
+										handleDeleteTag(tagToDelete);
+										setTagToDelete(null);
+									}
+								}}
+							>
+								Delete
+							</AlertDialogAction>
+						</AlertDialogFooter>
+					</AlertDialogContent>
+				</AlertDialog>
 			</div>
 
 			{isLoadingArchive && archive.tweets.length === 0 ? (

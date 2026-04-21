@@ -8,6 +8,8 @@ const desktopBridge: DesktopBridge = {
 		ipcRenderer.invoke(desktopChannels.getArchiveSnapshot, options),
 	saveTweetTags: (tweetId, tagNames) =>
 		ipcRenderer.invoke(desktopChannels.saveTweetTags, tweetId, tagNames),
+	deleteTag: (tagName) =>
+		ipcRenderer.invoke(desktopChannels.deleteTag, tagName),
 	getSyncState: () => ipcRenderer.invoke(desktopChannels.getSyncState),
 	startSync: (options) =>
 		ipcRenderer.invoke(desktopChannels.startSync, options),

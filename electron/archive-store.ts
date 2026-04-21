@@ -640,6 +640,13 @@ export class ArchiveStore {
     }
   }
 
+  deleteTag(tagName: string) {
+    const normalizedName = tagName.trim().toLowerCase()
+    this.database
+      .prepare("DELETE FROM tags WHERE name = ?")
+      .run(normalizedName)
+  }
+
   listMediaPendingDownload(limit = 250): Array<{
     id: string
     kind: ArchiveMedia["kind"]
