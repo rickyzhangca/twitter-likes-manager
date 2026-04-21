@@ -37,7 +37,7 @@ type NavigationItem = {
 	label: string;
 	icon: Icon;
 	badge?: string;
-	to: "/home" | "/sync" | "/log" | "/settings";
+	to: "/home" | "/tweets" | "/sync" | "/log" | "/settings";
 };
 
 function formatCompactCount(value: number) {
@@ -60,6 +60,11 @@ export function AppSidebar({
 			icon: HouseIcon,
 			badge: formatCompactCount(archive.stats.tweetCount),
 			to: "/home",
+		},
+		{
+			label: "Tweets",
+			icon: ListIcon,
+			to: "/tweets",
 		},
 		{
 			label: "Sync",

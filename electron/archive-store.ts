@@ -1,4 +1,4 @@
-import { mkdirSync } from "node:fs"
+import { mkdirSync, rmSync } from "node:fs"
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
 
@@ -637,6 +637,96 @@ export class ArchiveStore {
     } catch (error) {
       this.database.exec("ROLLBACK")
       throw error
+    }
+  }
+
+  deleteTweets(tweetIds: string[]) {
+    const normalizedTweetIds = [...new Set(tweetIds.map((tweetId) => tweetId.trim()).filter(Boolean))]
+
+    if (normalizedTweetIds.length === 0) {
+      return
+    }
+
+    const selectedTweetRows = this.database
+      .prepare(
+        `
+          SELECT id, quoted_tweet_id
+          FROM tweets
+          WHERE source = 'like'
+            AND id IN (${normalizedTweetIds.map(() => "?").join(", ")})
+        `
+      )
+      .all(...normalizedTweetIds) as Array<{
+      id: string
+      quoted_tweet_id: string | null
+    }>
+
+    if (selectedTweetRows.length === 0) {
+      return
+    }
+
+    const selectedTweetIds = selectedTweetRows.map((row) => row.id)
+    const quotedTweetIds = [
+      ...new Set(
+        selectedTweetRows
+          .map((row) => row.quoted_tweet_id)
+          .filter((tweetId): tweetId is string => Boolean(tweetId))
+      ),
+    ]
+
+    const orphanedQuotedTweetIds =
+      quotedTweetIds.length === 0
+        ? []
+        : (
+            this.database
+              .prepare(
+                `
+                  SELECT quoted.id
+                  FROM tweets AS quoted
+                  WHERE quoted.source = 'quoted'
+                    AND quoted.id IN (${quotedTweetIds.map(() => "?").join(", ")})
+                    AND NOT EXISTS (
+                      SELECT 1
+                      FROM tweets AS refs
+                      WHERE refs.quoted_tweet_id = quoted.id
+                        AND refs.id NOT IN (${selectedTweetIds.map(() => "?").join(", ")})
+                    )
+                `
+              )
+              .all(...quotedTweetIds, ...selectedTweetIds) as Array<{ id: string }>
+          ).map((row) => row.id)
+
+    const allTweetIdsToDelete = [...new Set([...selectedTweetIds, ...orphanedQuotedTweetIds])]
+    const localMediaPaths = this.listLocalMediaPathsForTweetIds(allTweetIdsToDelete)
+
+    this.database.exec("BEGIN")
+
+    try {
+      this.database
+        .prepare(
+          `
+            DELETE FROM tweets
+            WHERE id IN (${allTweetIdsToDelete.map(() => "?").join(", ")})
+          `
+        )
+        .run(...allTweetIdsToDelete)
+
+      this.database.exec(`
+        DELETE FROM authors
+        WHERE id NOT IN (SELECT DISTINCT author_id FROM tweets);
+
+        DELETE FROM tags
+        WHERE name NOT IN (SELECT DISTINCT tag_name FROM tweet_tags);
+      `)
+
+      this.database.exec("COMMIT")
+    } catch (error) {
+      this.database.exec("ROLLBACK")
+      throw error
+    }
+
+    for (const localMediaPath of localMediaPaths) {
+      this.removeLocalMediaFile(localMediaPath)
     }
   }
 
@@ -1491,6 +1581,37 @@ export class ArchiveStore {
       lastAttemptedAt: row.last_attempted_at,
       downloadedAt: row.downloaded_at,
     }
+  }
+
+  private listLocalMediaPathsForTweetIds(tweetIds: string[]) {
+    if (tweetIds.length === 0) {
+      return []
+    }
+
+    const rows = this.database
+      .prepare(
+        `
+          SELECT local_path
+          FROM media
+          WHERE tweet_id IN (${tweetIds.map(() => "?").join(", ")})
+            AND local_path IS NOT NULL
+        `
+      )
+      .all(...tweetIds) as Array<{ local_path: string | null }>
+
+    return [...new Set(rows.map((row) => row.local_path).filter((localPath): localPath is string => Boolean(localPath)))]
+  }
+
+  private removeLocalMediaFile(localPath: string) {
+    const resolvedMediaRoot = path.resolve(this.mediaDirectory)
+    const resolvedMediaPath = path.resolve(localPath)
+    const relativePath = path.relative(resolvedMediaRoot, resolvedMediaPath)
+
+    if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
+      return
+    }
+
+    rmSync(resolvedMediaPath, { force: true })
   }
 }
 

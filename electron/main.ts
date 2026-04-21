@@ -85,6 +85,16 @@ function registerIpcHandlers() {
 		},
 	);
 	ipcMain.handle(
+		desktopChannels.deleteTweets,
+		(_event, tweetIds: string[]) => {
+			if (!archiveStore) {
+				throw new Error("Archive store is not initialized");
+			}
+
+			archiveStore.deleteTweets(tweetIds);
+		},
+	);
+	ipcMain.handle(
 		desktopChannels.saveTweetTags,
 		(_event, tweetId: string, tagNames: string[]) => {
 			if (!archiveStore) {

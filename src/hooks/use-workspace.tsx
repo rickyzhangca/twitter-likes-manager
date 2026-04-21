@@ -90,6 +90,7 @@ type WorkspaceContextValue = {
 	archiveTotalPages: number;
 	bridgeStatus: string;
 	deferredArchiveSearch: string;
+	handleDeleteTweets: (tweetIds: string[]) => Promise<void>;
 	handleOpenDataDirectory: () => Promise<void>;
 	handleResumeSync: () => Promise<void>;
 	handleSaveTweetTags: (tweetId: string, tagNames: string[]) => Promise<void>;
@@ -481,6 +482,59 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 		}
 	}
 
+	async function handleDeleteTweets(tweetIds: string[]) {
+		if (!window.twitterLikesDesktop) {
+			setBridgeStatus(
+				"Tweet deletion is only available in the Electron shell.",
+			);
+			return;
+		}
+
+		const normalizedTweetIds = [
+			...new Set(tweetIds.map((tweetId) => tweetId.trim()).filter(Boolean)),
+		];
+
+		if (normalizedTweetIds.length === 0) {
+			return;
+		}
+
+		setIsLoadingArchive(true);
+
+		try {
+			await window.twitterLikesDesktop.deleteTweets(normalizedTweetIds);
+
+			let nextArchive = await loadDesktopArchiveSnapshot({
+				page: archivePage,
+				search: deferredArchiveSearch,
+				tagFilters: archiveTagFilters,
+			});
+			const nextArchiveTotalPages =
+				Math.ceil(nextArchive.stats.filteredTweetCount / archivePageSize) || 1;
+
+			if (archivePage > nextArchiveTotalPages) {
+				setArchivePage(nextArchiveTotalPages);
+				nextArchive = await loadDesktopArchiveSnapshot({
+					page: nextArchiveTotalPages,
+					search: deferredArchiveSearch,
+					tagFilters: archiveTagFilters,
+				});
+			}
+
+			startTransition(() => {
+				setArchive(nextArchive);
+			});
+			setBridgeStatus(
+				`Deleted ${normalizedTweetIds.length} tweet${normalizedTweetIds.length === 1 ? "" : "s"}.`,
+			);
+		} catch (error) {
+			const message =
+				error instanceof Error ? error.message : "Could not delete tweets";
+			setBridgeStatus(`Delete tweets failed: ${message}`);
+		} finally {
+			setIsLoadingArchive(false);
+		}
+	}
+
 	async function handleDeleteTag(tagName: string) {
 		if (!window.twitterLikesDesktop) {
 			setBridgeStatus("Tag deletion is only available in the Electron shell.");
@@ -568,6 +622,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 				archiveTotalPages,
 				bridgeStatus,
 				deferredArchiveSearch,
+				handleDeleteTweets,
 				handleDeleteTag,
 				handleOpenDataDirectory,
 				handleResumeSync,

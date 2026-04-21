@@ -9,12 +9,18 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TweetsRouteImport } from './routes/tweets'
 import { Route as SyncRouteImport } from './routes/sync'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as LogRouteImport } from './routes/log'
 import { Route as HomeRouteImport } from './routes/home'
 import { Route as IndexRouteImport } from './routes/index'
 
+const TweetsRoute = TweetsRouteImport.update({
+  id: '/tweets',
+  path: '/tweets',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SyncRoute = SyncRouteImport.update({
   id: '/sync',
   path: '/sync',
@@ -47,6 +53,7 @@ export interface FileRoutesByFullPath {
   '/log': typeof LogRoute
   '/settings': typeof SettingsRoute
   '/sync': typeof SyncRoute
+  '/tweets': typeof TweetsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -54,6 +61,7 @@ export interface FileRoutesByTo {
   '/log': typeof LogRoute
   '/settings': typeof SettingsRoute
   '/sync': typeof SyncRoute
+  '/tweets': typeof TweetsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -62,13 +70,14 @@ export interface FileRoutesById {
   '/log': typeof LogRoute
   '/settings': typeof SettingsRoute
   '/sync': typeof SyncRoute
+  '/tweets': typeof TweetsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/home' | '/log' | '/settings' | '/sync'
+  fullPaths: '/' | '/home' | '/log' | '/settings' | '/sync' | '/tweets'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/home' | '/log' | '/settings' | '/sync'
-  id: '__root__' | '/' | '/home' | '/log' | '/settings' | '/sync'
+  to: '/' | '/home' | '/log' | '/settings' | '/sync' | '/tweets'
+  id: '__root__' | '/' | '/home' | '/log' | '/settings' | '/sync' | '/tweets'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -77,10 +86,18 @@ export interface RootRouteChildren {
   LogRoute: typeof LogRoute
   SettingsRoute: typeof SettingsRoute
   SyncRoute: typeof SyncRoute
+  TweetsRoute: typeof TweetsRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/tweets': {
+      id: '/tweets'
+      path: '/tweets'
+      fullPath: '/tweets'
+      preLoaderRoute: typeof TweetsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/sync': {
       id: '/sync'
       path: '/sync'
@@ -125,6 +142,7 @@ const rootRouteChildren: RootRouteChildren = {
   LogRoute: LogRoute,
   SettingsRoute: SettingsRoute,
   SyncRoute: SyncRoute,
+  TweetsRoute: TweetsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
