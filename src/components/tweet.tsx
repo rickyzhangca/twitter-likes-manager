@@ -2,6 +2,7 @@ import {
 	ChatCircleIcon,
 	HeartIcon,
 	PlusIcon,
+	ShareIcon,
 	TagIcon,
 } from "@phosphor-icons/react";
 import { format, isThisYear, isToday, isYesterday } from "date-fns";
@@ -249,7 +250,7 @@ export const Tweet = ({ tweet }: { tweet: ArchiveTweetPreview }) => {
 				<dl className="text-sm">
 					<div className="flex items-center gap-4">
 						<dd className="flex items-center gap-1">
-							<ChatCircleIcon className="opacity-50" />
+							<ChatCircleIcon weight="bold" className="opacity-50" />
 							<span className="translate-y-px opacity-50">
 								{tweet.metrics.replies}
 							</span>
@@ -260,6 +261,14 @@ export const Tweet = ({ tweet }: { tweet: ArchiveTweetPreview }) => {
 								{tweet.metrics.likes}
 							</span>
 						</dd>
+						<a
+							href={tweet.url}
+							target="_blank"
+							rel="noopener noreferrer"
+							className="opacity-50 hover:opacity-100 hover:text-blue-600"
+						>
+							<ShareIcon weight="bold" />
+						</a>
 					</div>
 				</dl>
 			</div>

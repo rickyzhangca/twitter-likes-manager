@@ -315,6 +315,7 @@ export class ArchiveStore {
     const offset = normalizeArchiveOffset(options?.offset)
     const searchTerm = normalizeArchiveSearch(options?.search)
     const selectedTags = normalizeArchiveTags(options?.tags)
+    const sortOrder = options?.sortOrder === "asc" ? "ASC" : "DESC"
     const archiveFilters = buildArchiveFilters({ searchTerm, selectedTags })
 
     const stats = this.database
@@ -387,7 +388,7 @@ export class ArchiveStore {
           LEFT JOIN media ON media.tweet_id = tweets.id
           WHERE ${archiveFilters.whereClause}
           GROUP BY tweets.id
-          ORDER BY tweets.imported_at DESC
+          ORDER BY tweets.imported_at ${sortOrder}
             LIMIT ?
             OFFSET ?
         `

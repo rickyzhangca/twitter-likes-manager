@@ -5,6 +5,7 @@ import {
 	useNavigate,
 	useSearch,
 } from "@tanstack/react-router";
+import { SortAscendingIcon, SortDescendingIcon } from "@phosphor-icons/react";
 import { useEffect, useId, useRef, useState } from "react";
 import { Tweet } from "@/components/tweet";
 import {
@@ -18,6 +19,7 @@ import {
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
 	ContextMenu,
 	ContextMenuContent,
@@ -136,6 +138,7 @@ function Home() {
 		archive,
 		archivePage,
 		archiveSearchInput,
+		archiveSortOrder,
 		archiveTagFilters,
 		archiveTotalPages,
 		deferredArchiveSearch,
@@ -143,6 +146,7 @@ function Home() {
 		handleSetArchivePage,
 		isLoadingArchive,
 		setArchiveSearchInput,
+		setArchiveSortOrder,
 		setArchiveTagFilters,
 	} = useWorkspace();
 
@@ -214,10 +218,15 @@ function Home() {
 			</p>
 
 			<div className="flex flex-col gap-3">
-				<label
-					htmlFor={archiveSearchInputId}
-					className="grid gap-2 text-sm text-foreground lg:w-80"
-				>
+				<div className="flex gap-2 lg:w-80">
+					<Button
+						variant="outline"
+						size="icon"
+						onClick={() => setArchiveSortOrder(archiveSortOrder === "desc" ? "asc" : "desc")}
+						title={archiveSortOrder === "desc" ? "Newest first — click to show oldest first" : "Oldest first — click to show newest first"}
+					>
+						{archiveSortOrder === "desc" ? <SortDescendingIcon /> : <SortAscendingIcon />}
+					</Button>
 					<Input
 						id={archiveSearchInputId}
 						value={archiveSearchInput}
@@ -225,7 +234,7 @@ function Home() {
 						placeholder="@username, display name, or tweet text"
 						autoComplete="off"
 					/>
-				</label>
+				</div>
 
 				{archive.tags.length > 0 && (
 					<div className="flex flex-wrap gap-1">

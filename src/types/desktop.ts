@@ -79,11 +79,14 @@ export type ArchiveSnapshot = {
   tweets: ArchiveTweetPreview[]
 }
 
+export type SortOrder = "desc" | "asc"
+
 export type ArchiveQueryOptions = {
   search?: string
   tags?: string[]
   limit?: number
   offset?: number
+  sortOrder?: SortOrder
 }
 
 export type SyncPhase =

@@ -13,6 +13,7 @@ import {
 import type {
 	ArchiveSnapshot,
 	DesktopAppState,
+	SortOrder,
 	SyncStartOptions,
 	SyncState,
 } from "@/types/desktop";
@@ -79,6 +80,7 @@ type ArchiveLoadOptions = {
 	page?: number;
 	search?: string;
 	tagFilters?: string[];
+	sortOrder?: SortOrder;
 };
 
 type WorkspaceContextValue = {
@@ -86,6 +88,7 @@ type WorkspaceContextValue = {
 	archive: ArchiveSnapshot;
 	archivePage: number;
 	archiveSearchInput: string;
+	archiveSortOrder: SortOrder;
 	archiveTagFilters: string[];
 	archiveTotalPages: number;
 	bridgeStatus: string;
@@ -104,6 +107,7 @@ type WorkspaceContextValue = {
 	isRetryingFailedMedia: boolean;
 	isStartingSync: boolean;
 	setArchiveSearchInput: (value: string) => void;
+	setArchiveSortOrder: (order: SortOrder) => void;
 	setArchiveTagFilters: (tags: string[]) => void;
 	setBridgeStatus: (value: string) => void;
 	setSyncLimitInput: (value: string) => void;
@@ -158,12 +162,14 @@ function createArchiveQuery({
 	page = 1,
 	search = "",
 	tagFilters = [],
+	sortOrder = "desc",
 }: ArchiveLoadOptions = {}) {
 	return {
 		search,
 		tags: tagFilters,
 		limit: archivePageSize,
 		offset: (page - 1) * archivePageSize,
+		sortOrder,
 	};
 }
 
@@ -203,6 +209,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 	);
 	const deferredArchiveSearch = useDeferredValue(archiveSearchInput.trim());
 	const [archivePage, setArchivePage] = useState(1);
+	const [archiveSortOrder, setArchiveSortOrderState] = useState<SortOrder>("desc");
 
 	const archiveTotalPages =
 		Math.ceil(archive.stats.filteredTweetCount / archivePageSize) || 1;
@@ -256,6 +263,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 			page: archivePage,
 			search: deferredArchiveSearch,
 			tagFilters: archiveTagFilters,
+			sortOrder: archiveSortOrder,
 		})
 			.then((nextArchive) => {
 				if (isDisposed) {
@@ -283,7 +291,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 		return () => {
 			isDisposed = true;
 		};
-	}, [archivePage, archiveTagFilters, deferredArchiveSearch]);
+	}, [archivePage, archiveTagFilters, deferredArchiveSearch, archiveSortOrder]);
 
 	useEffect(() => {
 		const desktopBridge = window.twitterLikesDesktop;
@@ -304,6 +312,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 							page: archivePage,
 							search: deferredArchiveSearch,
 							tagFilters: archiveTagFilters,
+							sortOrder: archiveSortOrder,
 						});
 						setArchive(nextArchive);
 						setIsLoadingArchive(false);
@@ -327,6 +336,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 		archivePage,
 		archiveTagFilters,
 		deferredArchiveSearch,
+		archiveSortOrder,
 		syncState.activeRun,
 	]);
 
@@ -456,6 +466,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 				page: archivePage,
 				search: deferredArchiveSearch,
 				tagFilters: archiveTagFilters,
+				sortOrder: archiveSortOrder,
 			});
 			const nextArchiveTotalPages =
 				Math.ceil(nextArchive.stats.filteredTweetCount / archivePageSize) || 1;
@@ -466,6 +477,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 					page: nextArchiveTotalPages,
 					search: deferredArchiveSearch,
 					tagFilters: archiveTagFilters,
+					sortOrder: archiveSortOrder,
 				});
 			}
 
@@ -507,6 +519,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 				page: archivePage,
 				search: deferredArchiveSearch,
 				tagFilters: archiveTagFilters,
+				sortOrder: archiveSortOrder,
 			});
 			const nextArchiveTotalPages =
 				Math.ceil(nextArchive.stats.filteredTweetCount / archivePageSize) || 1;
@@ -517,6 +530,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 					page: nextArchiveTotalPages,
 					search: deferredArchiveSearch,
 					tagFilters: archiveTagFilters,
+					sortOrder: archiveSortOrder,
 				});
 			}
 
@@ -552,6 +566,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 				page: archivePage,
 				search: deferredArchiveSearch,
 				tagFilters: nextTagFilters,
+				sortOrder: archiveSortOrder,
 			});
 			const nextArchiveTotalPages =
 				Math.ceil(nextArchive.stats.filteredTweetCount / archivePageSize) || 1;
@@ -562,6 +577,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 					page: nextArchiveTotalPages,
 					search: deferredArchiveSearch,
 					tagFilters: nextTagFilters,
+					sortOrder: archiveSortOrder,
 				});
 			}
 
@@ -611,6 +627,14 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 		setArchivePage(page);
 	}
 
+	function setArchiveSortOrder(order: SortOrder) {
+		if (window.twitterLikesDesktop) {
+			setIsLoadingArchive(true);
+		}
+
+		setArchiveSortOrderState(order);
+	}
+
 	return (
 		<WorkspaceContext.Provider
 			value={{
@@ -618,6 +642,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 				archive,
 				archivePage,
 				archiveSearchInput,
+				archiveSortOrder,
 				archiveTagFilters,
 				archiveTotalPages,
 				bridgeStatus,
@@ -636,6 +661,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 				isRetryingFailedMedia,
 				isStartingSync,
 				setArchiveSearchInput,
+				setArchiveSortOrder,
 				setArchiveTagFilters,
 				setBridgeStatus,
 				setSyncLimitInput,
