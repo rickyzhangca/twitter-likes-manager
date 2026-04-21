@@ -206,17 +206,16 @@ export const Tweet = ({ tweet }: { tweet: ArchiveTweetPreview }) => {
 
 			<div className="flex flex-col gap-3 pl-8">
 				<p className="text-sm">{tweet.text}</p>
-				{tweet.tags.length > 0 ||
-					(canEditTags && (
-						<div className="flex flex-wrap items-center gap-1 pb-1">
-							{tweet.tags.map((tag) => (
-								<Badge key={tag} variant="outline">
-									{tag}
-								</Badge>
-							))}
-							{canEditTags ? <TweetTagEditor tweet={tweet} /> : null}
-						</div>
-					))}
+				{(tweet.tags.length > 0 || canEditTags) && (
+					<div className="flex flex-wrap items-center gap-1 pb-1">
+						{tweet.tags.map((tag) => (
+							<Badge key={tag} variant="outline">
+								{tag}
+							</Badge>
+						))}
+						{canEditTags ? <TweetTagEditor tweet={tweet} /> : null}
+					</div>
+				)}
 				<TweetMediaPreview media={tweet.media} />
 				{tweet.quotedTweet && (
 					<div className="rounded-2xl border border-border p-3 flex flex-col gap-2">
