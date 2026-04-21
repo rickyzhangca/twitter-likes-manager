@@ -1,6 +1,7 @@
 export const desktopChannels = {
   getAppState: "desktop:get-app-state",
   getArchiveSnapshot: "desktop:get-archive-snapshot",
+  saveTweetTags: "desktop:save-tweet-tags",
   getSyncState: "desktop:get-sync-state",
   startSync: "desktop:start-sync",
   resumeSync: "desktop:resume-sync",
@@ -34,6 +35,11 @@ export type ArchiveMedia = {
   localPath: string | null
 }
 
+export type ArchiveTag = {
+  name: string
+  tweetCount: number
+}
+
 export type ArchiveTweetPreview = {
   id: string
   url: string
@@ -52,6 +58,7 @@ export type ArchiveTweetPreview = {
     displayName: string
     avatarUrl: string | null
   }
+  tags: string[]
   media: ArchiveMedia[]
   quotedTweet: ArchiveTweetPreview | null
 }
@@ -66,11 +73,13 @@ export type ArchiveSnapshot = {
     mediaCount: number
     latestImportedAt: string | null
   }
+  tags: ArchiveTag[]
   tweets: ArchiveTweetPreview[]
 }
 
 export type ArchiveQueryOptions = {
   search?: string
+  tags?: string[]
   limit?: number
   offset?: number
 }
@@ -143,6 +152,7 @@ export type DesktopBridge = {
   getArchiveSnapshot: (
     options?: ArchiveQueryOptions,
   ) => Promise<ArchiveSnapshot>
+  saveTweetTags: (tweetId: string, tagNames: string[]) => Promise<void>
   getSyncState: () => Promise<SyncState>
   startSync: (options: SyncStartOptions) => Promise<SyncState>
   resumeSync: () => Promise<SyncState>

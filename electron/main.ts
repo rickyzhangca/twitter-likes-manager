@@ -84,6 +84,16 @@ function registerIpcHandlers() {
 			return archiveStore.getArchiveSnapshot(options);
 		},
 	);
+	ipcMain.handle(
+		desktopChannels.saveTweetTags,
+		(_event, tweetId: string, tagNames: string[]) => {
+			if (!archiveStore) {
+				throw new Error("Archive store is not initialized");
+			}
+
+			archiveStore.saveTweetTags(tweetId, tagNames);
+		},
+	);
 	ipcMain.handle(desktopChannels.getSyncState, () => {
 		if (!syncService) {
 			throw new Error("Sync service is not initialized");

@@ -6,6 +6,7 @@ import type {
   ArchiveMedia,
   ArchiveQueryOptions,
   ArchiveSnapshot,
+  ArchiveTag,
   ArchiveTweetPreview,
   DesktopAppState,
   SyncDownloadProgress,
@@ -46,6 +47,16 @@ type TweetRow = {
   qt_username: string | null
   qt_display_name: string | null
   qt_avatar_url: string | null
+}
+
+type TweetTagRow = {
+  tweet_id: string
+  tag_name: string
+}
+
+type ArchiveTagRow = {
+  name: string
+  tweet_count: number | null
 }
 
 type SyncRunRow = {
@@ -194,6 +205,14 @@ const seededMedia = [
   },
 ] as const
 
+const starterTags = ["ai", "design", "键政"] as const
+
+const starterTagAssignments = [
+  { tweetId: "tweet-1", tagName: "ai" },
+  { tweetId: "tweet-2", tagName: "design" },
+  { tweetId: "tweet-3", tagName: "键政" },
+] as const
+
 export class ArchiveStore {
   readonly dataDirectory: string
   readonly databasePath: string
@@ -216,6 +235,7 @@ export class ArchiveStore {
     this.ensureSchema()
     this.migrateSchema()
     this.seedIfEmpty()
+    this.seedStarterTags()
   }
 
   getAppState(): Pick<DesktopAppState, "dataDirectory" | "services"> {
@@ -378,9 +398,8 @@ export class ArchiveStore {
     const limit = normalizeArchiveLimit(options?.limit)
     const offset = normalizeArchiveOffset(options?.offset)
     const searchTerm = normalizeArchiveSearch(options?.search)
-    const escapedSearchTerm = searchTerm
-      ? `%${escapeSqlLikePattern(searchTerm)}%`
-      : null
+    const selectedTags = normalizeArchiveTags(options?.tags)
+    const archiveFilters = buildArchiveFilters({ searchTerm, selectedTags })
 
     const stats = this.database
       .prepare(
@@ -399,7 +418,7 @@ export class ArchiveStore {
       latest_imported_at: string | null
     }
 
-    const filteredTweetCount = escapedSearchTerm
+    const filteredTweetCount = archiveFilters.hasFilters
       ? (
           this.database
             .prepare(
@@ -407,15 +426,10 @@ export class ArchiveStore {
                 SELECT COUNT(DISTINCT tweets.id) AS cnt
                 FROM tweets
                 JOIN authors ON authors.id = tweets.author_id
-                WHERE tweets.source = 'like'
-                  AND (
-                    lower(tweets.text) LIKE ? ESCAPE '\\'
-                    OR lower(authors.username) LIKE ? ESCAPE '\\'
-                    OR lower(authors.display_name) LIKE ? ESCAPE '\\'
-                  )
+                WHERE ${archiveFilters.whereClause}
               `
             )
-            .get(escapedSearchTerm, escapedSearchTerm, escapedSearchTerm) as {
+            .get(...archiveFilters.params) as {
             cnt: number
           }
         ).cnt
@@ -455,16 +469,7 @@ export class ArchiveStore {
           LEFT JOIN tweets qt ON qt.id = tweets.quoted_tweet_id
           LEFT JOIN authors qta ON qta.id = qt.author_id
           LEFT JOIN media ON media.tweet_id = tweets.id
-          WHERE tweets.source = 'like'
-            ${
-              escapedSearchTerm
-                ? `AND (
-                    lower(tweets.text) LIKE ? ESCAPE '\\'
-                    OR lower(authors.username) LIKE ? ESCAPE '\\'
-                    OR lower(authors.display_name) LIKE ? ESCAPE '\\'
-                  )`
-                : ""
-            }
+          WHERE ${archiveFilters.whereClause}
           GROUP BY tweets.id
           ORDER BY tweets.imported_at DESC
             LIMIT ?
@@ -472,12 +477,27 @@ export class ArchiveStore {
         `
       )
         .all(
-          ...(escapedSearchTerm
-            ? [escapedSearchTerm, escapedSearchTerm, escapedSearchTerm]
-            : []),
+          ...archiveFilters.params,
           limit,
           offset,
         ) as TweetRow[]
+
+    const tweetTagsById = this.listTagsForTweetIds(tweetRows.map((tweet) => tweet.id))
+
+    const availableTags = this.database
+      .prepare(
+        `
+          SELECT
+            tags.name,
+            COUNT(DISTINCT CASE WHEN tweets.source = 'like' THEN tweet_tags.tweet_id END) AS tweet_count
+          FROM tags
+          LEFT JOIN tweet_tags ON tweet_tags.tag_name = tags.name
+          LEFT JOIN tweets ON tweets.id = tweet_tags.tweet_id
+          GROUP BY tags.name
+          ORDER BY lower(tags.name) ASC
+        `
+      )
+      .all() as ArchiveTagRow[]
 
     const mediaStatement = this.database.prepare(
       `
@@ -498,6 +518,10 @@ export class ArchiveStore {
         mediaCount: stats.media_count,
         latestImportedAt: stats.latest_imported_at,
       },
+      tags: availableTags.map((tag): ArchiveTag => ({
+        name: tag.name,
+        tweetCount: tag.tweet_count ?? 0,
+      })),
       tweets: tweetRows.map((tweet) => ({
         id: tweet.id,
         url: tweet.url,
@@ -516,6 +540,7 @@ export class ArchiveStore {
           displayName: tweet.display_name,
           avatarUrl: tweet.avatar_url,
         },
+        tags: tweetTagsById.get(tweet.id) ?? [],
         media: (mediaStatement.all(tweet.id) as Array<{
           id: string
           tweet_id: string
@@ -547,7 +572,8 @@ export class ArchiveStore {
                 displayName: tweet.qt_display_name ?? "",
                 avatarUrl: tweet.qt_avatar_url,
               },
-              media: (mediaStatement.all(tweet.qt_id!) as Array<{
+              tags: [],
+              media: (mediaStatement.all(tweet.qt_id ?? "") as Array<{
                 id: string
                 tweet_id: string
                 kind: ArchiveTweetPreview["media"][number]["kind"]
@@ -563,6 +589,54 @@ export class ArchiveStore {
             }
           : null,
       })),
+    }
+  }
+
+  saveTweetTags(tweetId: string, tagNames: string[]) {
+    const normalizedTagNames = normalizeArchiveTags(tagNames)
+    const tweetExists = this.database
+      .prepare("SELECT 1 AS exists_flag FROM tweets WHERE id = ?")
+      .get(tweetId) as { exists_flag: number } | undefined
+
+    if (!tweetExists) {
+      throw new Error(`Tweet ${tweetId} does not exist`)
+    }
+
+    const insertTag = this.database.prepare(
+      `
+        INSERT INTO tags (name)
+        VALUES (?)
+        ON CONFLICT(name) DO NOTHING
+      `
+    )
+    const deleteTagsForTweet = this.database.prepare(
+      `
+        DELETE FROM tweet_tags
+        WHERE tweet_id = ?
+      `
+    )
+    const insertTweetTag = this.database.prepare(
+      `
+        INSERT INTO tweet_tags (tweet_id, tag_name)
+        VALUES (?, ?)
+        ON CONFLICT(tweet_id, tag_name) DO NOTHING
+      `
+    )
+
+    this.database.exec("BEGIN")
+
+    try {
+      deleteTagsForTweet.run(tweetId)
+
+      for (const tagName of normalizedTagNames) {
+        insertTag.run(tagName)
+        insertTweetTag.run(tweetId, tagName)
+      }
+
+      this.database.exec("COMMIT")
+    } catch (error) {
+      this.database.exec("ROLLBACK")
+      throw error
     }
   }
 
@@ -1073,6 +1147,21 @@ export class ArchiveStore {
         "ALTER TABLE tweets ADD COLUMN quoted_tweet_id TEXT"
       )
     }
+
+    this.database.exec(`
+      CREATE TABLE IF NOT EXISTS tags (
+        name TEXT PRIMARY KEY
+      ) STRICT;
+
+      CREATE TABLE IF NOT EXISTS tweet_tags (
+        tweet_id TEXT NOT NULL REFERENCES tweets(id) ON DELETE CASCADE,
+        tag_name TEXT NOT NULL REFERENCES tags(name) ON DELETE CASCADE,
+        PRIMARY KEY (tweet_id, tag_name)
+      ) STRICT;
+
+      CREATE INDEX IF NOT EXISTS idx_tweet_tags_tag_name
+      ON tweet_tags (tag_name, tweet_id);
+    `)
   }
 
   private ensureSchema() {
@@ -1118,6 +1207,16 @@ export class ArchiveStore {
         local_path TEXT
       ) STRICT;
 
+      CREATE TABLE IF NOT EXISTS tags (
+        name TEXT PRIMARY KEY
+      ) STRICT;
+
+      CREATE TABLE IF NOT EXISTS tweet_tags (
+        tweet_id TEXT NOT NULL REFERENCES tweets(id) ON DELETE CASCADE,
+        tag_name TEXT NOT NULL REFERENCES tags(name) ON DELETE CASCADE,
+        PRIMARY KEY (tweet_id, tag_name)
+      ) STRICT;
+
       CREATE TABLE IF NOT EXISTS sync_run_checkpoints (
         run_id TEXT PRIMARY KEY REFERENCES sync_runs(id) ON DELETE CASCADE,
         max_tweets INTEGER NOT NULL DEFAULT 200,
@@ -1158,6 +1257,9 @@ export class ArchiveStore {
 
       CREATE INDEX IF NOT EXISTS idx_media_download_jobs_run_status
       ON media_download_jobs (run_id, status);
+
+      CREATE INDEX IF NOT EXISTS idx_tweet_tags_tag_name
+      ON tweet_tags (tag_name, tweet_id);
     `)
   }
 
@@ -1249,6 +1351,77 @@ export class ArchiveStore {
     `)
   }
 
+  private listTagsForTweetIds(tweetIds: string[]) {
+    const tagsByTweetId = new Map<string, string[]>()
+
+    if (tweetIds.length === 0) {
+      return tagsByTweetId
+    }
+
+    const rows = this.database
+      .prepare(
+        `
+          SELECT tweet_id, tag_name
+          FROM tweet_tags
+          WHERE tweet_id IN (${tweetIds.map(() => "?").join(", ")})
+          ORDER BY lower(tag_name) ASC
+        `
+      )
+      .all(...tweetIds) as TweetTagRow[]
+
+    for (const row of rows) {
+      const existingTags = tagsByTweetId.get(row.tweet_id)
+
+      if (existingTags) {
+        existingTags.push(row.tag_name)
+        continue
+      }
+
+      tagsByTweetId.set(row.tweet_id, [row.tag_name])
+    }
+
+    return tagsByTweetId
+  }
+
+  private seedStarterTags() {
+    const insertTag = this.database.prepare(
+      `
+        INSERT INTO tags (name)
+        VALUES (?)
+        ON CONFLICT(name) DO NOTHING
+      `
+    )
+    const upsertTweetTag = this.database.prepare(
+      `
+        INSERT INTO tweet_tags (tweet_id, tag_name)
+        SELECT ?, ?
+        WHERE EXISTS (SELECT 1 FROM tweets WHERE id = ?)
+        ON CONFLICT(tweet_id, tag_name) DO NOTHING
+      `
+    )
+
+    this.database.exec("BEGIN")
+
+    try {
+      for (const tagName of starterTags) {
+        insertTag.run(tagName)
+      }
+
+      for (const assignment of starterTagAssignments) {
+        upsertTweetTag.run(
+          assignment.tweetId,
+          assignment.tagName,
+          assignment.tweetId
+        )
+      }
+
+      this.database.exec("COMMIT")
+    } catch (error) {
+      this.database.exec("ROLLBACK")
+      throw error
+    }
+  }
+
   private mapSyncRun(row: SyncRunRow): SyncRun {
     const totalCount = row.total_media_count ?? 0
 
@@ -1324,6 +1497,47 @@ const syncRunSelectColumns = `
   COALESCE(media_download_job_stats.total_media_count, 0) AS total_media_count
 `
 
+function buildArchiveFilters({
+  searchTerm,
+  selectedTags,
+}: {
+  searchTerm: string
+  selectedTags: string[]
+}) {
+  const conditions = ["tweets.source = 'like'"]
+  const params: Array<number | string> = []
+
+  if (searchTerm) {
+    const escapedSearchTerm = `%${escapeSqlLikePattern(searchTerm)}%`
+
+    conditions.push(`(
+      lower(tweets.text) LIKE ? ESCAPE '\\'
+      OR lower(authors.username) LIKE ? ESCAPE '\\'
+      OR lower(authors.display_name) LIKE ? ESCAPE '\\'
+    )`)
+    params.push(escapedSearchTerm, escapedSearchTerm, escapedSearchTerm)
+  }
+
+  if (selectedTags.length > 0) {
+    conditions.push(`tweets.id IN (
+      SELECT tweet_tags.tweet_id
+      FROM tweet_tags
+      JOIN tweets tagged_tweets ON tagged_tweets.id = tweet_tags.tweet_id
+      WHERE tagged_tweets.source = 'like'
+        AND tweet_tags.tag_name IN (${selectedTags.map(() => "?").join(", ")})
+      GROUP BY tweet_tags.tweet_id
+      HAVING COUNT(DISTINCT tweet_tags.tag_name) = ?
+    )`)
+    params.push(...selectedTags, selectedTags.length)
+  }
+
+  return {
+    hasFilters: Boolean(searchTerm) || selectedTags.length > 0,
+    params,
+    whereClause: conditions.join("\n                  AND "),
+  }
+}
+
 function normalizeArchiveLimit(limit: number | undefined) {
   if (typeof limit !== "number" || !Number.isFinite(limit)) {
     return 24
@@ -1346,6 +1560,14 @@ function normalizeArchiveSearch(search: string | undefined) {
   }
 
   return search.trim().toLowerCase()
+}
+
+function normalizeArchiveTags(tags: string[] | undefined) {
+  if (!tags) {
+    return []
+  }
+
+  return [...new Set(tags.map((tag) => tag.trim().toLowerCase()).filter(Boolean))]
 }
 
 function escapeSqlLikePattern(value: string) {

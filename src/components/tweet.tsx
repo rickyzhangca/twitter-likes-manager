@@ -1,7 +1,25 @@
-import { ChatCircleIcon, HeartIcon } from "@phosphor-icons/react";
+import {
+	ChatCircleIcon,
+	HeartIcon,
+	PlusIcon,
+	TagIcon,
+} from "@phosphor-icons/react";
 import { format, isThisYear, isToday, isYesterday } from "date-fns";
+import { useMemo, useState } from "react";
+import { useWorkspace } from "@/hooks/use-workspace";
 import type { ArchiveTweetPreview } from "@/types/desktop";
 import { TweetMediaPreview } from "./tweet-media-preview";
+import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import {
+	Popover,
+	PopoverContent,
+	PopoverDescription,
+	PopoverHeader,
+	PopoverTitle,
+	PopoverTrigger,
+} from "./ui/popover";
 
 function formatTweetDate(isoString: string | null) {
 	if (!isoString) return "not available";
@@ -17,7 +35,155 @@ function formatFullDate(isoString: string | null) {
 	return format(new Date(isoString), "MMM d, yyyy h:mm a");
 }
 
+function normalizeTweetTags(tags: string[]) {
+	return [
+		...new Set(tags.map((tag) => tag.trim().toLowerCase()).filter(Boolean)),
+	];
+}
+
+function TweetTagEditor({ tweet }: { tweet: ArchiveTweetPreview }) {
+	const { archive, handleSaveTweetTags } = useWorkspace();
+	const [draftTags, setDraftTags] = useState(() => tweet.tags);
+	const [isOpen, setIsOpen] = useState(false);
+	const [isSaving, setIsSaving] = useState(false);
+	const [newTagInput, setNewTagInput] = useState("");
+	const availableTags = useMemo(
+		() =>
+			Array.from(
+				new Set([...archive.tags.map((tag) => tag.name), ...tweet.tags]),
+			).sort((left, right) => left.localeCompare(right)),
+		[archive.tags, tweet.tags],
+	);
+	const normalizedDraftTags = normalizeTweetTags(draftTags);
+	const normalizedNewTag = newTagInput.trim().toLowerCase();
+	const canAddNewTag =
+		!isSaving &&
+		normalizedNewTag.length > 0 &&
+		!normalizedDraftTags.includes(normalizedNewTag);
+
+	function handleOpenChange(open: boolean) {
+		setIsOpen(open);
+
+		if (!open) {
+			setDraftTags(tweet.tags);
+			setNewTagInput("");
+		}
+	}
+
+	async function persistTags(nextTags: string[]) {
+		const normalizedTags = normalizeTweetTags(nextTags);
+
+		setDraftTags(normalizedTags);
+		setIsSaving(true);
+
+		try {
+			await handleSaveTweetTags(tweet.id, normalizedTags);
+		} catch {
+			setDraftTags(tweet.tags);
+		} finally {
+			setIsSaving(false);
+		}
+	}
+
+	function toggleDraftTag(tagName: string) {
+		if (isSaving) {
+			return;
+		}
+
+		const nextTags = normalizedDraftTags.includes(tagName)
+			? normalizedDraftTags.filter((tag) => tag !== tagName)
+			: [...normalizedDraftTags, tagName];
+
+		void persistTags(nextTags);
+	}
+
+	function handleAddNewTag() {
+		if (!canAddNewTag) {
+			return;
+		}
+
+		void persistTags([...normalizedDraftTags, normalizedNewTag]);
+		setNewTagInput("");
+	}
+
+	return (
+		<Popover open={isOpen} onOpenChange={handleOpenChange}>
+			<PopoverTrigger
+				render={
+					<Button variant="outline" size="icon-xs" aria-label="Manage tags" />
+				}
+			>
+				<TagIcon />
+			</PopoverTrigger>
+			<PopoverContent align="end" className="w-80">
+				<PopoverHeader>
+					<PopoverTitle>Manage tags</PopoverTitle>
+					<PopoverDescription>
+						Click any tag to apply the change immediately, or create a new one.
+					</PopoverDescription>
+				</PopoverHeader>
+
+				<div className="flex flex-col gap-3">
+					<div className="flex flex-wrap gap-2">
+						{availableTags.length > 0 ? (
+							availableTags.map((tagName) => {
+								const isSelected = normalizedDraftTags.includes(tagName);
+
+								return (
+									<button
+										key={tagName}
+										type="button"
+										onClick={() => toggleDraftTag(tagName)}
+										className="cursor-pointer disabled:cursor-wait"
+										disabled={isSaving}
+									>
+										<Badge variant={isSelected ? "default" : "outline"}>
+											{tagName}
+										</Badge>
+									</button>
+								);
+							})
+						) : (
+							<p className="text-xs text-muted-foreground">
+								No tags yet. Create the first one below.
+							</p>
+						)}
+					</div>
+
+					<div className="flex gap-2">
+						<Input
+							value={newTagInput}
+							onChange={(event) => setNewTagInput(event.target.value)}
+							onKeyDown={(event) => {
+								if (event.key === "Enter") {
+									event.preventDefault();
+									handleAddNewTag();
+								}
+							}}
+							placeholder="Add a tag"
+							autoComplete="off"
+							disabled={isSaving}
+						/>
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							onClick={handleAddNewTag}
+							disabled={!canAddNewTag}
+						>
+							<PlusIcon data-icon="inline-start" />
+							Add
+						</Button>
+					</div>
+				</div>
+			</PopoverContent>
+		</Popover>
+	);
+}
+
 export const Tweet = ({ tweet }: { tweet: ArchiveTweetPreview }) => {
+	const canEditTags = Boolean(window.twitterLikesDesktop);
+
 	return (
 		<article
 			key={tweet.id}
@@ -43,6 +209,16 @@ export const Tweet = ({ tweet }: { tweet: ArchiveTweetPreview }) => {
 
 			<div className="flex flex-col gap-4 pl-8">
 				<p className="text-sm">{tweet.text}</p>
+				{tweet.tags.length > 0 || canEditTags ? (
+					<div className="flex flex-wrap items-center gap-2">
+						{tweet.tags.map((tag) => (
+							<Badge key={tag} variant="outline">
+								{tag}
+							</Badge>
+						))}
+						{canEditTags ? <TweetTagEditor tweet={tweet} /> : null}
+					</div>
+				) : null}
 				<TweetMediaPreview media={tweet.media} />
 				{tweet.quotedTweet && (
 					<div className="rounded-md border border-border p-3 flex flex-col gap-2">

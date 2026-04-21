@@ -63,6 +63,7 @@ const browserPreviewArchive: ArchiveSnapshot = {
 		mediaCount: 0,
 		latestImportedAt: null,
 	},
+	tags: [],
 	tweets: [],
 };
 
@@ -73,16 +74,26 @@ const browserPreviewSyncState: SyncState = {
 	recentRuns: [],
 };
 
+const archivePageSize = 24;
+
+type ArchiveLoadOptions = {
+	page?: number;
+	search?: string;
+	tagFilters?: string[];
+};
+
 type WorkspaceContextValue = {
 	appState: DesktopAppState;
 	archive: ArchiveSnapshot;
 	archivePage: number;
 	archiveSearchInput: string;
+	archiveTagFilters: string[];
 	archiveTotalPages: number;
 	bridgeStatus: string;
 	deferredArchiveSearch: string;
 	handleOpenDataDirectory: () => Promise<void>;
 	handleResumeSync: () => Promise<void>;
+	handleSaveTweetTags: (tweetId: string, tagNames: string[]) => Promise<void>;
 	handleSetArchivePage: (page: number) => void;
 	handleStartSync: () => Promise<void>;
 	handleRetryFailedMediaForRun: (runId: string) => Promise<void>;
@@ -92,6 +103,7 @@ type WorkspaceContextValue = {
 	isRetryingFailedMedia: boolean;
 	isStartingSync: boolean;
 	setArchiveSearchInput: (value: string) => void;
+	setArchiveTagFilters: (tags: string[]) => void;
 	setBridgeStatus: (value: string) => void;
 	setSyncLimitInput: (value: string) => void;
 	syncLimitInput: string;
@@ -129,6 +141,29 @@ export function formatDate(isoString: string | null) {
 	}).format(new Date(isoString));
 }
 
+function createArchiveQuery({
+	page = 1,
+	search = "",
+	tagFilters = [],
+}: ArchiveLoadOptions = {}) {
+	return {
+		search,
+		tags: tagFilters,
+		limit: archivePageSize,
+		offset: (page - 1) * archivePageSize,
+	};
+}
+
+async function loadDesktopArchiveSnapshot(options: ArchiveLoadOptions = {}) {
+	const desktopBridge = window.twitterLikesDesktop;
+
+	if (!desktopBridge) {
+		return browserPreviewArchive;
+	}
+
+	return desktopBridge.getArchiveSnapshot(createArchiveQuery(options));
+}
+
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
 	const [appState, setAppState] =
 		useState<DesktopAppState>(browserPreviewState);
@@ -149,15 +184,15 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 	const [isRetryingFailedMedia, setIsRetryingFailedMedia] = useState(false);
 	const [isStartingSync, setIsStartingSync] = useState(false);
 	const [archiveSearchInput, setArchiveSearchInputState] = useState("");
+	const [archiveTagFilters, setArchiveTagFiltersState] = useState<string[]>([]);
 	const [syncLimitInput, setSyncLimitInput] = useState(() =>
 		loadStoredSyncLimit(),
 	);
 	const deferredArchiveSearch = useDeferredValue(archiveSearchInput.trim());
 	const [archivePage, setArchivePage] = useState(1);
-	const PAGE_SIZE = 24;
 
 	const archiveTotalPages =
-		Math.ceil(archive.stats.filteredTweetCount / PAGE_SIZE) || 1;
+		Math.ceil(archive.stats.filteredTweetCount / archivePageSize) || 1;
 
 	useEffect(() => {
 		let isDisposed = false;
@@ -198,20 +233,17 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 	}, []);
 
 	useEffect(() => {
-		const desktopBridge = window.twitterLikesDesktop;
-
-		if (!desktopBridge) {
+		if (!window.twitterLikesDesktop) {
 			return;
 		}
 
 		let isDisposed = false;
 
-		void desktopBridge
-			.getArchiveSnapshot({
-				search: deferredArchiveSearch,
-				limit: PAGE_SIZE,
-				offset: (archivePage - 1) * PAGE_SIZE,
-			})
+		void loadDesktopArchiveSnapshot({
+			page: archivePage,
+			search: deferredArchiveSearch,
+			tagFilters: archiveTagFilters,
+		})
 			.then((nextArchive) => {
 				if (isDisposed) {
 					return;
@@ -238,7 +270,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 		return () => {
 			isDisposed = true;
 		};
-	}, [deferredArchiveSearch, archivePage]);
+	}, [archivePage, archiveTagFilters, deferredArchiveSearch]);
 
 	useEffect(() => {
 		const desktopBridge = window.twitterLikesDesktop;
@@ -255,10 +287,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
 					if (!nextSyncState.activeRun) {
 						setIsLoadingArchive(true);
-						const nextArchive = await desktopBridge.getArchiveSnapshot({
+						const nextArchive = await loadDesktopArchiveSnapshot({
+							page: archivePage,
 							search: deferredArchiveSearch,
-							limit: PAGE_SIZE,
-							offset: (archivePage - 1) * PAGE_SIZE,
+							tagFilters: archiveTagFilters,
 						});
 						setArchive(nextArchive);
 						setIsLoadingArchive(false);
@@ -278,7 +310,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 		return () => {
 			window.clearInterval(timer);
 		};
-	}, [deferredArchiveSearch, archivePage, syncState.activeRun]);
+	}, [
+		archivePage,
+		archiveTagFilters,
+		deferredArchiveSearch,
+		syncState.activeRun,
+	]);
 
 	async function handleOpenDataDirectory() {
 		if (!window.twitterLikesDesktop) {
@@ -384,12 +421,68 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 		}
 	}
 
+	async function handleSaveTweetTags(tweetId: string, tagNames: string[]) {
+		if (!window.twitterLikesDesktop) {
+			setBridgeStatus("Tag editing is only available in the Electron shell.");
+			return;
+		}
+
+		setIsLoadingArchive(true);
+
+		try {
+			await window.twitterLikesDesktop.saveTweetTags(tweetId, tagNames);
+
+			let nextArchive = await loadDesktopArchiveSnapshot({
+				page: archivePage,
+				search: deferredArchiveSearch,
+				tagFilters: archiveTagFilters,
+			});
+			const nextArchiveTotalPages =
+				Math.ceil(nextArchive.stats.filteredTweetCount / archivePageSize) || 1;
+
+			if (archivePage > nextArchiveTotalPages) {
+				setArchivePage(nextArchiveTotalPages);
+				nextArchive = await loadDesktopArchiveSnapshot({
+					page: nextArchiveTotalPages,
+					search: deferredArchiveSearch,
+					tagFilters: archiveTagFilters,
+				});
+			}
+
+			startTransition(() => {
+				setArchive(nextArchive);
+			});
+			setBridgeStatus("Updated tweet tags.");
+		} catch (error) {
+			const message =
+				error instanceof Error ? error.message : "Could not update tweet tags";
+			setBridgeStatus(`Update tweet tags failed: ${message}`);
+		} finally {
+			setIsLoadingArchive(false);
+		}
+	}
+
 	function setArchiveSearchInput(value: string) {
 		if (window.twitterLikesDesktop) {
 			setIsLoadingArchive(true);
 		}
 
 		setArchiveSearchInputState(value);
+		setArchivePage(1);
+	}
+
+	function setArchiveTagFilters(tags: string[]) {
+		const nextTags = normalizeArchiveTagFilters(tags);
+
+		if (areArchiveTagFiltersEqual(archiveTagFilters, nextTags)) {
+			return;
+		}
+
+		if (window.twitterLikesDesktop) {
+			setIsLoadingArchive(true);
+		}
+
+		setArchiveTagFiltersState(nextTags);
 		setArchivePage(1);
 	}
 
@@ -408,11 +501,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 				archive,
 				archivePage,
 				archiveSearchInput,
+				archiveTagFilters,
 				archiveTotalPages,
 				bridgeStatus,
 				deferredArchiveSearch,
 				handleOpenDataDirectory,
 				handleResumeSync,
+				handleSaveTweetTags,
 				handleRetryFailedMediaForRun,
 				handleSetArchivePage,
 				handleStartSync,
@@ -422,6 +517,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 				isRetryingFailedMedia,
 				isStartingSync,
 				setArchiveSearchInput,
+				setArchiveTagFilters,
 				setBridgeStatus,
 				setSyncLimitInput,
 				syncLimitInput,
@@ -441,4 +537,18 @@ export function useWorkspace() {
 	}
 
 	return context;
+}
+
+function normalizeArchiveTagFilters(tags: string[]) {
+	return [
+		...new Set(tags.map((tag) => tag.trim().toLowerCase()).filter(Boolean)),
+	];
+}
+
+function areArchiveTagFiltersEqual(currentTags: string[], nextTags: string[]) {
+	if (currentTags.length !== nextTags.length) {
+		return false;
+	}
+
+	return currentTags.every((tag, index) => tag === nextTags[index]);
 }

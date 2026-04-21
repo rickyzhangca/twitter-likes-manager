@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-router";
 import { useEffect, useId, useRef } from "react";
 import { Tweet } from "@/components/tweet";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
 	Pagination,
@@ -21,11 +22,13 @@ import { useWorkspace } from "@/hooks/use-workspace";
 
 type HomeSearch = {
 	page: number;
+	tags?: string;
 };
 
 export const Route = createFileRoute("/home")({
 	validateSearch: (search: Record<string, unknown>): HomeSearch => ({
 		page: Number(search?.page ?? 1) || 1,
+		tags: serializeHomeTags(parseHomeTags(search?.tags)),
 	}),
 	component: Home,
 });
@@ -70,7 +73,9 @@ function TweetPagination({
 				</PaginationItem>
 				{pages.map((page, index) =>
 					page === "ellipsis" ? (
-						<PaginationItem key={`ellipsis-${index}`}>
+						<PaginationItem
+							key={`ellipsis-${pages[index - 1] ?? "start"}-${pages[index + 1] ?? "end"}`}
+						>
 							<PaginationEllipsis />
 						</PaginationItem>
 					) : (
@@ -103,19 +108,24 @@ function TweetPagination({
 
 function Home() {
 	const archiveSearchInputId = useId().replace(/:/g, "");
-	const { page: urlPage } = useSearch({ strict: false }) as HomeSearch;
+	const { page: urlPage, tags: urlTagsParam } = useSearch({
+		strict: false,
+	}) as HomeSearch;
 	const navigate = useNavigate();
 	const previousDeferredArchiveSearch = useRef("");
+	const urlTags = parseHomeTags(urlTagsParam);
 
 	const {
 		archive,
 		archivePage,
 		archiveSearchInput,
+		archiveTagFilters,
 		archiveTotalPages,
 		deferredArchiveSearch,
 		handleSetArchivePage,
 		isLoadingArchive,
 		setArchiveSearchInput,
+		setArchiveTagFilters,
 	} = useWorkspace();
 
 	useEffect(() => {
@@ -125,6 +135,12 @@ function Home() {
 	}, [urlPage, archivePage, handleSetArchivePage]);
 
 	useEffect(() => {
+		if (!areHomeTagsEqual(urlTags, archiveTagFilters)) {
+			setArchiveTagFilters(urlTags);
+		}
+	}, [archiveTagFilters, setArchiveTagFilters, urlTags]);
+
+	useEffect(() => {
 		if (previousDeferredArchiveSearch.current === deferredArchiveSearch) {
 			return;
 		}
@@ -132,19 +148,46 @@ function Home() {
 		previousDeferredArchiveSearch.current = deferredArchiveSearch;
 
 		if (urlPage !== 1) {
-			void navigate({ to: "/home", search: { page: 1 } });
+			void navigate({
+				to: "/home",
+				search: {
+					page: 1,
+					tags: serializeHomeTags(archiveTagFilters),
+				},
+			});
 		}
-	}, [deferredArchiveSearch, navigate, urlPage]);
+	}, [archiveTagFilters, deferredArchiveSearch, navigate, urlPage]);
 
 	function handlePageChange(page: number) {
 		if (page < 1 || page > archiveTotalPages) return;
 		handleSetArchivePage(page);
-		void navigate({ to: "/home", search: { page } });
+		void navigate({
+			to: "/home",
+			search: {
+				page,
+				tags: serializeHomeTags(archiveTagFilters),
+			},
+		});
+	}
+
+	function handleToggleTagFilter(tagName: string) {
+		const nextTags = archiveTagFilters.includes(tagName)
+			? archiveTagFilters.filter((tag) => tag !== tagName)
+			: [...archiveTagFilters, tagName];
+
+		setArchiveTagFilters(nextTags);
+		void navigate({
+			to: "/home",
+			search: {
+				page: 1,
+				tags: serializeHomeTags(nextTags),
+			},
+		});
 	}
 
 	return (
 		<div className="flex flex-col max-w-150 mx-auto">
-			<div className="flex flex-col">
+			<div className="flex flex-col gap-3">
 				<label
 					htmlFor={archiveSearchInputId}
 					className="grid gap-2 text-sm text-foreground lg:w-80"
@@ -158,11 +201,41 @@ function Home() {
 						autoComplete="off"
 					/>
 				</label>
+
+				{archive.tags.length > 0 ? (
+					<div className="flex flex-col gap-2">
+						<p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+							Tag filters
+						</p>
+						<div className="flex flex-wrap gap-2">
+							{archive.tags.map((tag) => {
+								const isSelected = archiveTagFilters.includes(tag.name);
+
+								return (
+									<button
+										key={tag.name}
+										type="button"
+										onClick={() => handleToggleTagFilter(tag.name)}
+										className="cursor-pointer"
+									>
+										<Badge
+											variant={isSelected ? "default" : "outline"}
+											className="gap-1.5"
+										>
+											<span>{tag.name}</span>
+											<span className="opacity-60">{tag.tweetCount}</span>
+										</Badge>
+									</button>
+								);
+							})}
+						</div>
+					</div>
+				) : null}
 			</div>
 
 			<p className="text-sm">
 				{deferredArchiveSearch
-					? `Showing ${archive.tweets.length} of ${archive.stats.filteredTweetCount} match${archive.stats.filteredTweetCount === 1 ? "" : "es"} for "${deferredArchiveSearch}".`
+					? `Showing ${archive.tweets.length} of ${archive.stats.filteredTweetCount} match${archive.stats.filteredTweetCount === 1 ? "" : "es"} for "${deferredArchiveSearch}"${archiveTagFilters.length > 0 ? ` with ${archiveTagFilters.join(" + ")}.` : "."}`
 					: `Showing the most recent ${archive.tweets.length} of ${archive.stats.filteredTweetCount} archived tweet${archive.stats.filteredTweetCount === 1 ? "" : "s"}.`}
 			</p>
 
@@ -201,4 +274,33 @@ function Home() {
 			)}
 		</div>
 	);
+}
+
+function parseHomeTags(value: unknown) {
+	const rawValue = Array.isArray(value) ? value.join(",") : value;
+
+	if (typeof rawValue !== "string") {
+		return [];
+	}
+
+	return [
+		...new Set(
+			rawValue
+				.split(",")
+				.map((tag) => tag.trim().toLowerCase())
+				.filter(Boolean),
+		),
+	];
+}
+
+function serializeHomeTags(tags: string[]) {
+	return tags.length > 0 ? parseHomeTags(tags.join(",")).join(",") : undefined;
+}
+
+function areHomeTagsEqual(currentTags: string[], nextTags: string[]) {
+	if (currentTags.length !== nextTags.length) {
+		return false;
+	}
+
+	return currentTags.every((tag, index) => tag === nextTags[index]);
 }

@@ -6,6 +6,8 @@ const desktopBridge: DesktopBridge = {
 	getAppState: () => ipcRenderer.invoke(desktopChannels.getAppState),
 	getArchiveSnapshot: (options) =>
 		ipcRenderer.invoke(desktopChannels.getArchiveSnapshot, options),
+	saveTweetTags: (tweetId, tagNames) =>
+		ipcRenderer.invoke(desktopChannels.saveTweetTags, tweetId, tagNames),
 	getSyncState: () => ipcRenderer.invoke(desktopChannels.getSyncState),
 	startSync: (options) =>
 		ipcRenderer.invoke(desktopChannels.startSync, options),
