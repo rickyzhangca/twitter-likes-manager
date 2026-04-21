@@ -38,6 +38,7 @@ type MediaDownloadHooks = {
   ) => Promise<void> | void
 }
 
+const mediaDownloadConcurrency = 4
 const retryDelaysMs = [0, 400, 1200]
 
 export class MediaDownloader {
@@ -61,11 +62,18 @@ export class MediaDownloader {
 
     await mkdir(this.mediaDirectory, { recursive: true })
 
-    const results: DownloadedMedia[] = []
+    const results: DownloadedMedia[] = new Array(items.length)
+    let nextItemIndex = 0
 
-    for (const item of items) {
-      results.push(await this.downloadWithRetry(item, hooks))
-    }
+    await Promise.all(
+      Array.from({ length: Math.min(mediaDownloadConcurrency, items.length) }, async () => {
+        while (nextItemIndex < items.length) {
+          const currentIndex = nextItemIndex
+          nextItemIndex += 1
+          results[currentIndex] = await this.downloadWithRetry(items[currentIndex], hooks)
+        }
+      })
+    )
 
     return {
       downloadedCount: results.filter((result) => result.localPath).length,

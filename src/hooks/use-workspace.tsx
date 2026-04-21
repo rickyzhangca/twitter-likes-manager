@@ -18,7 +18,6 @@ import type {
 } from "@/types/desktop";
 
 export const defaultSyncLimit = 200;
-export const maxSyncLimit = 1000;
 
 const syncLimitStorageKey = "tlm.sync-limit";
 
@@ -126,7 +125,7 @@ function normalizeSyncLimit(value: string) {
 		return defaultSyncLimit;
 	}
 
-	return Math.min(maxSyncLimit, parsedValue);
+	return parsedValue;
 }
 
 function loadStoredSyncLimit() {

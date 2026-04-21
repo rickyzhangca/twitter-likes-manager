@@ -4,7 +4,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import {
 	formatDate,
-	maxSyncLimit,
 	useWorkspace,
 } from "@/hooks/use-workspace";
 
@@ -90,7 +89,6 @@ function SyncPage() {
 					<input
 						type="number"
 						min={1}
-						max={maxSyncLimit}
 						step={1}
 						inputMode="numeric"
 						placeholder="Unlimited"
@@ -106,7 +104,8 @@ function SyncPage() {
 					/>
 				</label>
 				<p className="max-w-xl text-sm leading-6 text-muted-foreground">
-					Leave empty for unlimited. Otherwise, allowed range: 1 to {maxSyncLimit}.
+						Leave empty for unlimited. Otherwise, enter any positive number for a
+						bounded batch.
 				</p>
 			</div>
 

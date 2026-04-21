@@ -647,11 +647,16 @@ export class ArchiveStore {
       .run(normalizedName)
   }
 
-  listMediaPendingDownload(limit = 250): Array<{
+  listMediaPendingDownload(limit?: number): Array<{
     id: string
     kind: ArchiveMedia["kind"]
     remoteUrl: string
   }> {
+    const normalizedLimit =
+      typeof limit === "number" && Number.isFinite(limit) && limit > 0
+        ? Math.trunc(limit)
+        : null
+
     const rows = this.database
       .prepare(
         `
@@ -660,10 +665,10 @@ export class ArchiveStore {
           JOIN tweets ON tweets.id = media.tweet_id
           WHERE media.local_path IS NULL
           ORDER BY tweets.imported_at DESC, media.id ASC
-          LIMIT ?
+          ${normalizedLimit ? "LIMIT ?" : ""}
         `
       )
-      .all(limit) as MediaDownloadRow[]
+      .all(...(normalizedLimit ? [normalizedLimit] : [])) as MediaDownloadRow[]
 
     return rows.map((row) => ({
       id: row.id,

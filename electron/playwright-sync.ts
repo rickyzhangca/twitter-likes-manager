@@ -387,7 +387,9 @@ export class PlaywrightSync {
 						tweetIds.add(entryId.slice("tweet-".length));
 					}
 				}
-			} catch {}
+			} catch {
+				continue;
+			}
 		}
 
 		return tweetIds.size;

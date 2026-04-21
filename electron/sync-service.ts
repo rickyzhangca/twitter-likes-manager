@@ -464,7 +464,7 @@ function normalizeSyncStartOptions(options?: SyncStartOptions) {
 
 	const maxTweets =
 		typeof requestedLimit === "number" && Number.isFinite(requestedLimit)
-			? Math.min(1000, Math.max(1, Math.trunc(requestedLimit)))
+			? Math.max(1, Math.trunc(requestedLimit))
 			: 200;
 
 	return { maxTweets };
