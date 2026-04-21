@@ -372,9 +372,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 			setSyncState(nextSyncState);
 			window.localStorage.setItem(
 				syncLimitStorageKey,
-				normalizedMaxTweets === Infinity ? "unlimited" : String(normalizedMaxTweets),
+				normalizedMaxTweets === Infinity
+					? "unlimited"
+					: String(normalizedMaxTweets),
 			);
-			setSyncLimitInput(normalizedMaxTweets === Infinity ? "" : String(normalizedMaxTweets));
+			setSyncLimitInput(
+				normalizedMaxTweets === Infinity ? "" : String(normalizedMaxTweets),
+			);
 			setBridgeStatus(
 				normalizedMaxTweets === Infinity
 					? "Started a desktop-managed sync run with no limit."
@@ -488,9 +492,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 		try {
 			await window.twitterLikesDesktop.deleteTag(tagName);
 
-			const nextTagFilters = archiveTagFilters.filter(
-				(t) => t !== tagName,
-			);
+			const nextTagFilters = archiveTagFilters.filter((t) => t !== tagName);
 
 			let nextArchive = await loadDesktopArchiveSnapshot({
 				page: archivePage,

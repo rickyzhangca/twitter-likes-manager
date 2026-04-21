@@ -96,9 +96,10 @@ export class PlaywrightSync {
 
 		await onProgress({
 			phase: "capturing-likes",
-			message: options.maxTweets === Infinity
-				? "Session detected. Capturing all liked tweets from the Playwright profile."
-				: `Session detected. Capturing up to ${options.maxTweets} liked tweets from the Playwright profile.`,
+			message:
+				options.maxTweets === Infinity
+					? "Session detected. Capturing all liked tweets from the Playwright profile."
+					: `Session detected. Capturing up to ${options.maxTweets} liked tweets from the Playwright profile.`,
 			scannedCount: 0,
 			importedCount: 0,
 		});
@@ -387,9 +388,7 @@ export class PlaywrightSync {
 						tweetIds.add(entryId.slice("tweet-".length));
 					}
 				}
-			} catch {
-				continue;
-			}
+			} catch {}
 		}
 
 		return tweetIds.size;
