@@ -13,12 +13,18 @@ import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "./ui/tooltip";
 
 function formatTweetDate(isoString: string | null) {
 	if (!isoString) return "not available";
 	const date = new Date(isoString);
-	if (isToday(date)) return "today";
-	if (isYesterday(date)) return "yesterday";
+	if (isToday(date)) return "Today";
+	if (isYesterday(date)) return "Yesterday";
 	if (isThisYear(date)) return format(date, "MMM d");
 	return format(date, "MMM d, yyyy");
 }
@@ -188,26 +194,32 @@ export const Tweet = ({ tweet }: { tweet: ArchiveTweetPreview }) => {
 				)}
 				<span className="font-medium truncate">{tweet.author.displayName}</span>
 				<span className="opacity-50">@{tweet.author.username}</span>
-				<span className="opacity-50" title={formatFullDate(tweet.createdAt)}>
-					{formatTweetDate(tweet.createdAt)}
-				</span>
+				<TooltipProvider>
+					<Tooltip>
+						<TooltipTrigger className="opacity-50 cursor-default">
+							{formatTweetDate(tweet.createdAt)}
+						</TooltipTrigger>
+						<TooltipContent>{formatFullDate(tweet.createdAt)}</TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
 			</div>
 
-			<div className="flex flex-col gap-4 pl-8">
+			<div className="flex flex-col gap-3 pl-8">
 				<p className="text-sm">{tweet.text}</p>
-				{tweet.tags.length > 0 || canEditTags ? (
-					<div className="flex flex-wrap items-center gap-1">
-						{tweet.tags.map((tag) => (
-							<Badge key={tag} variant="outline">
-								{tag}
-							</Badge>
-						))}
-						{canEditTags ? <TweetTagEditor tweet={tweet} /> : null}
-					</div>
-				) : null}
+				{tweet.tags.length > 0 ||
+					(canEditTags && (
+						<div className="flex flex-wrap items-center gap-1 pb-1">
+							{tweet.tags.map((tag) => (
+								<Badge key={tag} variant="outline">
+									{tag}
+								</Badge>
+							))}
+							{canEditTags ? <TweetTagEditor tweet={tweet} /> : null}
+						</div>
+					))}
 				<TweetMediaPreview media={tweet.media} />
 				{tweet.quotedTweet && (
-					<div className="rounded-md border border-border p-3 flex flex-col gap-2">
+					<div className="rounded-2xl border border-border p-3 flex flex-col gap-2">
 						<div className="flex items-center gap-2 text-sm">
 							{tweet.quotedTweet.author.avatarUrl ? (
 								<img

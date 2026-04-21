@@ -58,7 +58,7 @@ export function TweetMediaPreview({ media }: { media: ArchiveMedia[] }) {
 						<div
 							key={item.id}
 							className={cn(
-								"group overflow-hidden border rounded-sm border-border bg-black",
+								"group overflow-hidden border rounded-xl border-border bg-black",
 								multi ? "w-full" : "w-fit max-w-135",
 							)}
 						>
@@ -80,7 +80,7 @@ export function TweetMediaPreview({ media }: { media: ArchiveMedia[] }) {
 						<div
 							key={item.id}
 							className={cn(
-								"group overflow-hidden border rounded-sm border-border bg-black/30",
+								"group overflow-hidden border rounded-xl border-border bg-black/30",
 								multi ? "w-full" : "w-fit max-w-135",
 							)}
 						>
@@ -104,7 +104,7 @@ export function TweetMediaPreview({ media }: { media: ArchiveMedia[] }) {
 						<ContextMenuTrigger>
 							<div
 								className={cn(
-									"group overflow-hidden rounded-sm border border-border bg-black/30",
+									"group overflow-hidden rounded-xl border border-border bg-black/30",
 									multi ? "w-full" : "w-fit max-w-135",
 								)}
 							>
